@@ -1,0 +1,11 @@
+.idea
+[Bb]uild
+buildMinGW
+cmake-build-debug
+Debug
+Release
+.vs
+*.json
+*.sln
+*.vcxproj.*
+*.vcxproj
