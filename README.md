@@ -14,7 +14,7 @@ Download and install the following dependencies:
 
 - [Visual Studio IDE](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=Community&channel=Release&version=VS2022&source=VSLandingPage&cid=3602&passive=false)
 - OpenCV for Windows. [MSVC Specific Download Link](https://github.com/opencv/opencv/releases/download/4.9.0/opencv-4.9.0-windows.exe). OpenCV extract location is relevant later. I recommend placing it in `C:/opencv` for simplicity.
-- [CMake](<(https://github.com/Kitware/CMake/releases/download/v3.29.0-rc3/cmake-3.29.0-rc3-windows-x86_64.msi)>).
+- [CMake](https://github.com/Kitware/CMake/releases/download/v3.29.0-rc3/cmake-3.29.0-rc3-windows-x86_64.msi).
 
 Navigate to where you have cloned the simulation-pipeline repository. Open a terminal and enter the following commands in order.
 
