@@ -24,9 +24,9 @@ cd build
 cmake .. -DOpenCV_DIR="<path/where/you/extracted/opencv/build/x64/vc16/lib>"
 ```
 
-Note: DOpenCV_DIR is case sensitive.
+Note: DOpenCV_DIR is case-sensitive.
 
-At this point you should be able to find a MSVC solution (.sln) file in the build directory (i.e. /path/to/simulation-pipeline/build).
+Once the commands finish executing, you should be able to find a MSVC solution (.sln) file in the build directory (i.e. /path/to/simulation-pipeline/build).
 Open the solution file and run the program via the green "Local Windows Debugger" button at the top.
 
 When "Debug" is chosen in the configuration dropdown, OpenCV will output some error messages in the console but they can be ignored and do not appear if the configuration is switched to "Release"
@@ -56,7 +56,7 @@ cmake .. -DOpenCV_DIR="<path/where/you/extracted/opencv/build/x64/mingw/lib>"
 ninja
 ```
 
-Note: DOpenCV_DIR is case sensitive.
+Note: DOpenCV_DIR is case-sensitive.
 
 The built executable should be placed into the build directory.
 
