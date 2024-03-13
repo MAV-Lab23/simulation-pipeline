@@ -1,8 +1,6 @@
 #pragma once
 
-#include <opencv2/core/types.hpp>
-
-using Color = cv::Scalar;
+#include <types.h>
 
 const Color RED{ 255, 0, 255 };
 const Color GREEN{ 0, 255, 0 };

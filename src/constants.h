@@ -1,22 +1,20 @@
 #pragma once
 
+#include <types.h>
+
 // POSITIVE ROTATION IS CLOCKWISE
 // NEGATIVE ROTATION IS COUNTER - CLOCKWISE
 
-// General math
-
-#define M_PI 3.14159265358979323846
-
 // Grid resolution / size
 
-constexpr const int GRID_DIMENSIONS[2] = { 700, 700 };
+constexpr const Vec2i GRID_DIMENSIONS = { 700, 700 };
 constexpr const int TILE_SIZE{ 10 };
 constexpr const int HALF_TILE_SIZE{ TILE_SIZE / 2 };
-constexpr const int GRID_SIZE[2] = { GRID_DIMENSIONS[0] / TILE_SIZE, GRID_DIMENSIONS[1] / TILE_SIZE };
-constexpr const int GRID_LENGTH{ GRID_SIZE[0] * GRID_SIZE[1] };
+constexpr const Vec2i GRID_SIZE = { GRID_DIMENSIONS.x / TILE_SIZE, GRID_DIMENSIONS.y / TILE_SIZE };
+constexpr const int GRID_LENGTH{ GRID_SIZE.x * GRID_SIZE.y };
 
 constexpr const int DIVIDER_WIDTH{ 10 }; // pixels
-constexpr const int WINDOW_SIZE[2] = { GRID_SIZE[0] * 2 + DIVIDER_WIDTH, GRID_SIZE[1] };
+constexpr const Vec2i WINDOW_SIZE = { GRID_SIZE.x * 2 + DIVIDER_WIDTH, GRID_SIZE.y };
 
 // Adding obstacles to screen
 

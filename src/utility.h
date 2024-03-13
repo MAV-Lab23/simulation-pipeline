@@ -1,10 +1,39 @@
 #pragma once
 
-#include <math.h>
 #include <stdio.h>
-
-#include <types.h>
+#include <cassert>
 #include <constants.h>
+#include <types.h>
+
+#define M_PI 3.14159265358979323846
+
+#define MAX(x, y) (((x) > (y)) ? (x) : (y))
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
+// This allocates memory. Clean up after yourself!
+uchar* CreateEmptyGrid() {
+	uchar* out_grid = (uchar*)malloc(GRID_LENGTH * sizeof(uchar));
+	for (int j = 0; j < GRID_SIZE.y; j++)
+	{
+		int offset = j * GRID_SIZE.x;
+		for (int i = 0; i < GRID_SIZE.x; i++)
+		{
+			out_grid[i + offset] = 0;
+		}
+	}
+	return out_grid;
+}
+
+void ClearGrid(uchar* out_grid) {
+	for (int j = 0; j < GRID_SIZE.y; j++)
+	{
+		int offset = j * GRID_SIZE.x;
+		for (int i = 0; i < GRID_SIZE.x; i++)
+		{
+			out_grid[i + offset] = 0;
+		}
+	}
+}
 
 float DegToRad(float degrees) {
 	return 2.0f * M_PI / 180.0f * degrees;
@@ -12,6 +41,11 @@ float DegToRad(float degrees) {
 
 float RadToDeg(float radians) {
 	return 180.0f / (2.0f * M_PI) * radians;
+}
+
+float Floor(float value) {
+	float tmp = (float)(int)value;
+	return (tmp != value) ? (tmp - 1.0f) : tmp;
 }
 
 // I know I could use a template here but I don't wanna add every possible condition for T.
@@ -27,20 +61,15 @@ float Clamp(float d, float min, float max) {
 }
 
 int Flatten(const Vec2i& coordinate) {
-	return GRID_SIZE[0] * coordinate[1] + coordinate[0];
+	return GRID_SIZE.x * coordinate.y + coordinate.x;
 }
 
 Vec2i WorldToGrid(const Vec2i& pos) {
 	return Vec2i{
-		(int)floor(Clamp(pos[0], 0, GRID_DIMENSIONS[0]) / TILE_SIZE),
-		(int)floor(Clamp(pos[1], 0, GRID_DIMENSIONS[1]) / TILE_SIZE)
+		(int)Floor(Clamp(pos.x, 0, GRID_DIMENSIONS.x) / TILE_SIZE),
+		(int)Floor(Clamp(pos.y, 0, GRID_DIMENSIONS.y) / TILE_SIZE)
 	};
 }
-
-struct BoundingRect {
-	Vec2i min{};
-	Vec2i max{};
-};
 
 BoundingRect GetBoundingRect(uchar* cells) {
 	assert(cells != nullptr);
@@ -48,10 +77,10 @@ BoundingRect GetBoundingRect(uchar* cells) {
 	int min_x, max_x = 0;
 	int min_y, max_y = 0;
 
-	for (int j = 0; j < GRID_SIZE[1]; j++)
+	for (int j = 0; j < GRID_SIZE.y; j++)
 	{
-		int offset = j * GRID_SIZE[0];
-		for (int i = 0; i < GRID_SIZE[0]; i++)
+		int offset = j * GRID_SIZE.x;
+		for (int i = 0; i < GRID_SIZE.x; i++)
 		{
 			int index = i + offset;
 			uchar value = cells[i];
