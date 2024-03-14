@@ -2,6 +2,11 @@
 
 using uchar = unsigned char;
 
+typedef struct Vec2f {
+	float x;
+	float y;
+} Vec2i;
+
 typedef struct Vec2i {
 	int x;
 	int y;
