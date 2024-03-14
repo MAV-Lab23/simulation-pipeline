@@ -5,7 +5,6 @@
 #include <utility.h>
 #include <opencv2/core/mat.hpp>
 
-
 #include <opencv2/opencv.hpp>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,7 +42,7 @@ Mat isolateGreenFloor(Mat image, Mat& isolatedFloor, Mat& mask) {
 	// Bitwise-AND mask and original image
 	bitwise_and(image, image, isolatedFloor, mask);
 
-	return mask
+	return mask;
 }
 
 void detectFloorBorder(Mat processedImage, vector<int>& floorBorder) {
