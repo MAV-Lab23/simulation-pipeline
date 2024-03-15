@@ -6,13 +6,13 @@
 #include <string>
 
 int main() {
-	cv::Mat a = cv::Mat::eye(640, 640, CV_8UC1)*255;
-	cv::imshow("1", a);
-	cv::waitKey(0);
+	// cv::Mat a = cv::Mat::eye(640, 640, CV_8UC1)*255;
+	// cv::imshow("1", a);
+	// cv::waitKey(0);
 
 
     // Specify the path to your image
-    string imagePath = "path/to/your/image.jpg";
+    string imagePath = "../img_0139.jpg";
 
     // Read the image from the specified file
     Mat img = imread(imagePath, IMREAD_COLOR);

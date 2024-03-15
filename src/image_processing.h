@@ -56,6 +56,16 @@ void detectFloorBorder(Mat processedImage, vector<int>& floorBorder) {
 	}
 }
 
+void smoothFloorBorder(vector<int>& floorBorder, vector<int>& smoothedBorder, int maxJump = 20) {
+	smoothedBorder = floorBorder; // Copy original floor border
+	for (size_t i = 1; i < floorBorder.size() - 1; i++) {
+		// Check for sharp jumps compared to neighbors
+		if (abs(floorBorder[i] - floorBorder[i - 1]) > maxJump && abs(floorBorder[i] - floorBorder[i + 1]) > maxJump) {
+			smoothedBorder[i] = (smoothedBorder[i - 1] + smoothedBorder[i + 1]) / 2; // Average of neighbors
+		}
+	}
+}
+
 void detectObjectPositions(vector<int>& floorBorder, vector<Point>& objectPositions, int maxSlopeChange = 10, int minPosChange = 10) {
 	vector<int> slopes;
 	for (size_t i = 1; i < floorBorder.size(); i++) {
@@ -147,16 +157,6 @@ void mergeCloseLines(vector<Vec4i>& lines, vector<Vec4i>& mergedLines, int merge
 
 		mergedLines.push_back(Vec4i(avgX1 / count, avgY1 / count, avgX2 / count, avgY2 / count));
 		merged[i] = true;
-	}
-}
-
-void smoothFloorBorder(vector<int>& floorBorder, vector<int>& smoothedBorder, int maxJump = 20) {
-	smoothedBorder = floorBorder; // Copy original floor border
-	for (size_t i = 1; i < floorBorder.size() - 1; i++) {
-		// Check for sharp jumps compared to neighbors
-		if (abs(floorBorder[i] - floorBorder[i - 1]) > maxJump && abs(floorBorder[i] - floorBorder[i + 1]) > maxJump) {
-			smoothedBorder[i] = (smoothedBorder[i - 1] + smoothedBorder[i + 1]) / 2; // Average of neighbors
-		}
 	}
 }
 
