@@ -2,11 +2,11 @@ cmake_minimum_required(VERSION 3.22)
 
 project(simulation)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 14)
 
 find_package(OpenCV REQUIRED)
 
-file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS "src/*.c" "src/*.cpp")
+set(SOURCE_FILES src/main.cpp)
 file(GLOB_RECURSE HEADER_FILES CONFIGURE_DEPENDS "src/*.h" "src/*.hpp")
 
 add_executable(simulation ${SOURCE_FILES} ${HEADER_FILES})
