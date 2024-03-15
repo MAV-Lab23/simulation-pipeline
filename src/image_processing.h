@@ -79,6 +79,46 @@ void calculateDistancesToObjects(Point imageCenter, vector<Point>& objectPositio
 	}
 }
 
+void detectObjectDistances(Mat image, Mat mask, vector<pair<Point, double>>& outputDistances) {
+	// Assuming the floor border is detected from the bottom of the image
+	int height = image.rows;
+	int width = image.cols;
+	Point bottomCenter(width / 2, height - 1);
+
+	// Kernel for morphological operations
+	int kernelSize = 5;
+	Mat kernel = getStructuringElement(MORPH_RECT, Size(kernelSize, kernelSize));
+
+	// Process the mask to detect edges and dilate
+	Mat processedMask;
+	Canny(mask, processedMask, 100, 200);
+	dilate(processedMask, processedMask, kernel, Point(-1, -1), 2);
+
+	// Detect and smooth the floor border
+	vector<int> floorBorder(width, 0);
+	vector<int> smoothedBorder(width, 0);
+	detectFloorBorder(processedMask, floorBorder);
+	smoothFloorBorder(floorBorder, smoothedBorder);
+
+	// Detect object positions along the floor border
+	vector<Point> objectPositions;
+	detectObjectPositions(smoothedBorder, objectPositions);
+
+	// Calculate distances from bottom center to each object position
+	vector<pair<Point, double>> distances;
+	calculateDistancesToObjects(bottomCenter, objectPositions, smoothedBorder, distances);
+
+	// Optional: Visualize results on the image
+	for (const auto& item : distances) {
+		const Point& pos = item.first;
+		circle(image, pos, 3, Scalar(0, 0, 255), -1); // Draw red circle at object position
+		line(image, bottomCenter, pos, Scalar(255, 0, 0), 2); // Draw blue line from bottom center to object
+	}
+
+	// Set the output
+	outputDistances = distances;
+}
+
 void mergeCloseLines(vector<Vec4i>& lines, vector<Vec4i>& mergedLines, int mergeThreshold = 10) {
 	vector<bool> merged(lines.size(), false);
 	for (size_t i = 0; i < lines.size(); ++i) {
@@ -118,4 +158,30 @@ void smoothFloorBorder(vector<int>& floorBorder, vector<int>& smoothedBorder, in
 			smoothedBorder[i] = (smoothedBorder[i - 1] + smoothedBorder[i + 1]) / 2; // Average of neighbors
 		}
 	}
+}
+
+void processImageForObjects(const Mat& inputImage, vector<pair<Point, double>>& objectDistances) {
+	// Ensure the input image is not empty
+	if (inputImage.empty()) {
+		cerr << "Error: Input image is empty." << endl;
+		return;
+	}
+
+	// Prepare the image and mask for object distance detection
+	Mat isolatedFloor, mask;
+	isolateGreenFloor(inputImage, isolatedFloor, mask);  // Assume this function is implemented elsewhere
+
+	// Clone the input image for annotation to preserve the original
+	Mat annotatedImage = inputImage.clone();
+
+	// Detect object distances and update the original image (if necessary)
+	detectObjectDistances(annotatedImage, mask, objectDistances);
+
+	// The function does not need to return the image itself;
+	// objectDistances will contain the positions and distances of detected objects.
+	
+	// Display the annotated image
+	namedWindow("Processed Image", WINDOW_AUTOSIZE);
+	imshow("Processed Image", annotatedImage);
+	waitKey(0); // Wait for a keystroke in the window
 }
