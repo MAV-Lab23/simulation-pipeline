@@ -19,7 +19,7 @@ constexpr const Vec2i WINDOW_SIZE = { GRID_SIZE.x * 2 + DIVIDER_WIDTH, GRID_SIZE
 // Adding obstacles to screen
 
 // Percent by which obstacle value is added to grid in one frame(from 0 to 255).
-constexpr const int VALUE_CHANGE{ 0.5 * 255 };
+constexpr const int VALUE_CHANGE{ int(0.5 * 255) };
 
 // Image convolution
 
