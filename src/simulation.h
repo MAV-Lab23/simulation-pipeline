@@ -6,49 +6,6 @@
 #include <drone.h>
 #include <draw.h>
 
-Vec2i GetObstacleGridPosition(const Vec2i& drone_cam_size,
-							  const Vec2i& point,
-							  float drone_fov_width, /* degrees */
-							  float drone_pitch, /* degrees */
-							  float drone_heading, /* degrees */
-							  const Vec2f& drone_pos,
-							  float drone_height /* meters */) {
-
-	float aspect_ratio = drone_cam_size.y / drone_cam_size.x;
-	int center_x = drone_cam_size.x / 2;
-	int center_y = drone_cam_size.y / 2;
-
-	float fov_h = drone_fov_width * aspect_ratio;
-
-	int dist_x = point.x - center_x;
-	int dist_y = point.y - center_y;
-
-	float frac_screen_y = dist_y / drone_cam_size.y;
-	float frac_screen_x = dist_x / drone_cam_size.x;
-
-	float angle_y = frac_screen_y * fov_h;
-	float angle_x = frac_screen_x * drone_fov_width;
-
-	// anti clockwise is positive
-
-	float line_angle = drone_pitch - angle_y;
-
-	// TODO: Change this to better reflect height of camera.
-	float height_camera = drone_height;
-
-	float x_pos_from_drone = height_camera / tan(line_angle);
-	float y_pos_from_drone = x_pos_from_drone * tan(angle_x);
-
-	float R_x = cos(drone_heading) - sin(drone_heading);
-	float R_y = sin(drone_heading) + cos(drone_heading);
-
-	// TODO: Check that this operation is in correct order.
-	float x_grid = R_x * x_pos_from_drone + drone_pos.x;
-	float y_grid = R_y * y_pos_from_drone + drone_pos.y;
-
-	return { (int)x_grid, (int)y_grid };
-}
-
 void InitSimulation(Simulation* self) {
 	self->values = CreateEmptyGrid();
 	self->stored_values = CreateEmptyGrid();
