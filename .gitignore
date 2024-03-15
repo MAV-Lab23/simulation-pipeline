@@ -9,3 +9,5 @@ Release
 *.sln
 *.vcxproj.*
 *.vcxproj
+[Tt]emp
+[Ii]mages
