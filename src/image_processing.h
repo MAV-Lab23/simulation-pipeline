@@ -160,7 +160,7 @@ void mergeCloseLines(vector<Vec4i>& lines, vector<Vec4i>& mergedLines, int merge
 	}
 }
 
-void processImageForObjects(const Mat& inputImage, vector<pair<Point, double>>& objectDistances) {
+vector<Point> processImageForObjects(const Mat& inputImage) {
 	// Ensure the input image is not empty
 	if (inputImage.empty()) {
 		cerr << "Error: Input image is empty." << endl;
@@ -175,13 +175,37 @@ void processImageForObjects(const Mat& inputImage, vector<pair<Point, double>>& 
 	Mat annotatedImage = inputImage.clone();
 
 	// Detect object distances and update the original image (if necessary)
-	detectObjectDistances(annotatedImage, mask, objectDistances);
+	// Assuming the floor border is detected from the bottom of the image
+	int height = inputImage.rows;
+	int width = inputImage.cols;
+	Point bottomCenter(width / 2, height - 1);
+
+	// Kernel for morphological operations
+	int kernelSize = 5;
+	Mat kernel = getStructuringElement(MORPH_RECT, Size(kernelSize, kernelSize));
+
+	// Process the mask to detect edges and dilate
+	Mat processedMask;
+	Canny(mask, processedMask, 100, 200);
+	dilate(processedMask, processedMask, kernel, Point(-1, -1), 2);
+
+	// Detect and smooth the floor border
+	vector<int> floorBorder(width, 0);
+	vector<int> smoothedBorder(width, 0);
+	detectFloorBorder(processedMask, floorBorder);
+	smoothFloorBorder(floorBorder, smoothedBorder);
+
+	// Detect object positions along the floor border
+	vector<Point> objectPositions;
+	detectObjectPositions(smoothedBorder, objectPositions);
 
 	// The function does not need to return the image itself;
 	// objectDistances will contain the positions and distances of detected objects.
-	
+
 	// Display the annotated image
-	namedWindow("Processed Image", WINDOW_AUTOSIZE);
-	imshow("Processed Image", annotatedImage);
-	waitKey(0); // Wait for a keystroke in the window
+	// namedWindow("Processed Image", WINDOW_AUTOSIZE);
+	// imshow("Processed Image", annotatedImage);
+	// waitKey(0); // Wait for a keystroke in the window
+
+	return objectPositions;
 }
