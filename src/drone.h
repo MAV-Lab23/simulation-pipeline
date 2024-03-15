@@ -6,7 +6,7 @@
 #include <types.h>
 #include <math.h>
 
-void DroneInit(Drone* self, Vec2i starting_pos, float starting_angle /*degrees*/) {
+void DroneInit(Drone* self, Vector2i starting_pos, float starting_angle /*degrees*/) {
 	self->pos = starting_pos;
 	self->angle = starting_angle;
 	self->r_angle = DegToRad(starting_angle);
@@ -26,7 +26,7 @@ void DroneRotate(Drone* self, float angle_diff) {
 void DroneMove(Drone* self, float distance, int dir) {
 	float x_movement = dir * distance * cos(self->r_angle);
 	float y_movement = dir * distance * sin(self->r_angle);
-	self->pos = Vec2i{
+	self->pos = Vector2i{
 		Clamp(self->pos.x + (int)x_movement, 0, GRID_DIMENSIONS.x),
 		Clamp(self->pos.y + (int)y_movement, 0, GRID_DIMENSIONS.y)
 	};
@@ -38,18 +38,18 @@ FOV DroneGetFOV(Drone* self) {
 	int right_edge_y = DRONE_FOV_DEPTH * sin(self->r_angle + self->fov_half_angle);
 	int left_edge_x = DRONE_FOV_DEPTH * cos(self->r_angle - self->fov_half_angle);
 	int left_edge_y = DRONE_FOV_DEPTH * sin(self->r_angle - self->fov_half_angle);
-	Vec2i right_pos = Vec2i{ Clamp(self->pos.x + right_edge_x, 0, GRID_DIMENSIONS.x), Clamp(self->pos.y + right_edge_y, 0, GRID_DIMENSIONS.y) };
-	Vec2i left_pos = Vec2i{ Clamp(self->pos.x + left_edge_x, 0, GRID_DIMENSIONS.x), Clamp(self->pos.y + left_edge_y, 0, GRID_DIMENSIONS.y) };
-	Vec2i pos = Vec2i{ Clamp(self->pos.x, 0, GRID_DIMENSIONS.x), Clamp(pos.y, 0, GRID_DIMENSIONS.y) };
+	Vector2i right_pos = Vector2i{ Clamp(self->pos.x + right_edge_x, 0, GRID_DIMENSIONS.x), Clamp(self->pos.y + right_edge_y, 0, GRID_DIMENSIONS.y) };
+	Vector2i left_pos = Vector2i{ Clamp(self->pos.x + left_edge_x, 0, GRID_DIMENSIONS.x), Clamp(self->pos.y + left_edge_y, 0, GRID_DIMENSIONS.y) };
+	Vector2i pos = Vector2i{ Clamp(self->pos.x, 0, GRID_DIMENSIONS.x), Clamp(pos.y, 0, GRID_DIMENSIONS.y) };
 	return { pos, right_pos, left_pos };
 }
 
-bool DroneObjectInFOV(Drone* self, const Vec2i& point) {
+bool DroneObjectInFOV(Drone* self, const Vector2i& point) {
 	FOV fov = DroneGetFOV(self);
 
-	Vec2i v1 = Vec2i{ point.x - fov.pos.x, point.y - fov.pos.y };
-	Vec2i v2 = Vec2i{ point.x - fov.left_pos.x, point.y - fov.left_pos.y };
-	Vec2i v3 = Vec2i{ point.x - fov.right_pos.x, point.y - fov.right_pos.y };
+	Vector2i v1 = Vector2i{ point.x - fov.pos.x, point.y - fov.pos.y };
+	Vector2i v2 = Vector2i{ point.x - fov.left_pos.x, point.y - fov.left_pos.y };
+	Vector2i v3 = Vector2i{ point.x - fov.right_pos.x, point.y - fov.right_pos.y };
 
 	// Calculate the cross products
 	int c1 = v1.x * v2.y - v1.y * v2.x;
@@ -67,7 +67,7 @@ void DroneResetCellsInFOV(Drone* self) {
 		for (int i = 0; i < GRID_SIZE.x; i++)
 		{
 			int index = i + offset;
-			Vec2i coord{ i, i };
+			Vector2i coord{ i, i };
 			if (DroneObjectInFOV(self, coord)) {
 				self->fov_cells[index] = 1;
 			} else {

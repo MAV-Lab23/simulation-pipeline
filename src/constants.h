@@ -7,14 +7,14 @@
 
 // Grid resolution / size
 
-constexpr const Vec2i GRID_DIMENSIONS = { 700, 700 };
+constexpr const Vector2i GRID_DIMENSIONS = { 700, 700 };
 constexpr const int TILE_SIZE{ 10 };
 constexpr const int HALF_TILE_SIZE{ TILE_SIZE / 2 };
-constexpr const Vec2i GRID_SIZE = { GRID_DIMENSIONS.x / TILE_SIZE, GRID_DIMENSIONS.y / TILE_SIZE };
+constexpr const Vector2i GRID_SIZE = { GRID_DIMENSIONS.x / TILE_SIZE, GRID_DIMENSIONS.y / TILE_SIZE };
 constexpr const int GRID_LENGTH{ GRID_SIZE.x * GRID_SIZE.y };
 
 constexpr const int DIVIDER_WIDTH{ 10 }; // pixels
-constexpr const Vec2i WINDOW_SIZE = { GRID_SIZE.x * 2 + DIVIDER_WIDTH, GRID_SIZE.y };
+constexpr const Vector2i WINDOW_SIZE = { GRID_SIZE.x * 2 + DIVIDER_WIDTH, GRID_SIZE.y };
 
 // Adding obstacles to screen
 

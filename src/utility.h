@@ -7,8 +7,17 @@
 
 #define M_PI 3.14159265358979323846
 
+#ifndef MAX
+
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
+
+#endif
+
+#ifndef MIN
+
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
+#endif
 
 // This allocates memory. Clean up after yourself!
 uchar* CreateEmptyGrid() {
@@ -50,22 +59,17 @@ float Floor(float value) {
 
 // I know I could use a template here but I don't wanna add every possible condition for T.
 
-int Clamp(int d, int min, int max) {
-	const int t = d < min ? min : d;
-	return t > max ? max : t;
-}
-
 float Clamp(float d, float min, float max) {
 	const float t = d < min ? min : d;
 	return t > max ? max : t;
 }
 
-int Flatten(const Vec2i& coordinate) {
+int Flatten(const Vector2i& coordinate) {
 	return GRID_SIZE.x * coordinate.y + coordinate.x;
 }
 
-Vec2i WorldToGrid(const Vec2i& pos) {
-	return Vec2i{
+Vector2i WorldToGrid(const Vector2i& pos) {
+	return Vector2i{
 		(int)Floor(Clamp(pos.x, 0, GRID_DIMENSIONS.x) / TILE_SIZE),
 		(int)Floor(Clamp(pos.y, 0, GRID_DIMENSIONS.y) / TILE_SIZE)
 	};
@@ -74,8 +78,10 @@ Vec2i WorldToGrid(const Vec2i& pos) {
 BoundingRect GetBoundingRect(uchar* cells) {
 	assert(cells != nullptr);
 
-	int min_x, max_x = 0;
-	int min_y, max_y = 0;
+	int min_x = 0;
+	int max_x = 0;
+	int min_y = 0;
+	int max_y = 0;
 
 	for (int j = 0; j < GRID_SIZE.y; j++)
 	{

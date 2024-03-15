@@ -44,8 +44,8 @@ void DrawScreen() {
 void DroneDrawDirection(Drone* self) {
 	int x_dir = DRONE_RADIUS * cos(self->r_angle) * TILE_SIZE;
 	int y_dir = DRONE_RADIUS * sin(self->r_angle) * TILE_SIZE;
-	Vec2i pos = Vec2i{ Clamp(pos.x, 0, GRID_DIMENSIONS.x), Clamp(pos.y, 0, GRID_DIMENSIONS.y) };
-	Vec2i end_pos = Vec2i{ Clamp(pos.x + x_dir, 0, GRID_DIMENSIONS.x), Clamp(pos.y + y_dir, 0, GRID_DIMENSIONS.y) };
+	Vector2i pos = Vector2i{ Clamp(pos.x, 0, GRID_DIMENSIONS.x), Clamp(pos.y, 0, GRID_DIMENSIONS.y) };
+	Vector2i end_pos = Vector2i{ Clamp(pos.x + x_dir, 0, GRID_DIMENSIONS.x), Clamp(pos.y + y_dir, 0, GRID_DIMENSIONS.y) };
 	//pygame.draw.line(sim.screen, GREEN, pos, end_pos, width = int(HALF_TILE_SIZE));
 }
 

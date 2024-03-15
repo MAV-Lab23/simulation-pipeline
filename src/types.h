@@ -1,16 +1,16 @@
 #pragma once
 
-using uchar = unsigned char;
+typedef unsigned char uchar;
 
-typedef struct Vec2f {
+typedef struct Vector2f {
 	float x;
 	float y;
-} Vec2i;
+} Vector2f;
 
-typedef struct Vec2i {
+typedef struct Vector2i {
 	int x;
 	int y;
-} Vec2i;
+} Vector2i;
 
 typedef struct Color {
 	uchar r;
@@ -19,18 +19,18 @@ typedef struct Color {
 } Color;
 
 typedef struct BoundingRect {
-	Vec2i min;
-	Vec2i max;
+	Vector2i min;
+	Vector2i max;
 } BoundingRect;
 
 typedef struct FOV {
-	Vec2i pos;
-	Vec2i right_pos;
-	Vec2i left_pos;
+	Vector2i pos;
+	Vector2i right_pos;
+	Vector2i left_pos;
 } FOV;
 
 typedef struct Drone {
-	Vec2i pos;
+	Vector2i pos;
 	float angle;
 	float r_angle;
 	float fov_half_angle;
