@@ -17,7 +17,7 @@
 #include <windows.h>
 
 // Function to get all files in a directory (Windows)
-int ForEachFile(const char* directory_path, bool (*callback)(const char* filename, const char* directory)) {
+int ForEachFile(const char* directory_path, const char* drone_data_file, bool (*callback)(const char* filename, const char* drone_data_file, const char* directory)) {
     WIN32_FIND_DATA find_data;
     HANDLE handle;
 
@@ -40,7 +40,7 @@ int ForEachFile(const char* directory_path, bool (*callback)(const char* filenam
         }
 
         // Call the callback function with filename
-        if (callback(find_data.cFileName, directory_path)) break;
+        if (callback(find_data.cFileName, drone_data_file, directory_path)) break;
     } while (FindNextFile(handle, &find_data));
 
     // Close handle
@@ -55,7 +55,7 @@ int ForEachFile(const char* directory_path, bool (*callback)(const char* filenam
 #include <sys/types.h>
 
 // Function to get all files in a directory (POSIX)
-int ForEachFile(const char* directory_path, bool (*callback)(const char* filename, const char* directory)) {
+int ForEachFile(const char* directory_path, const char* drone_data_file, bool (*callback)(const char* filename, const char* drone_data_file, const char* directory)) {
     DIR* dir;
     struct dirent* entry;
 
@@ -74,7 +74,7 @@ int ForEachFile(const char* directory_path, bool (*callback)(const char* filenam
         }
 
         // Call the callback function with filename
-        if (callback(entry->d_name, directory_path)) break;
+        if (callback(entry->d_name, drone_data_file, directory_path)) break;
     }
 
     // Close directory
@@ -84,6 +84,119 @@ int ForEachFile(const char* directory_path, bool (*callback)(const char* filenam
 }
 
 #endif
+
+
+
+#define ROWS_IN_CSV 3
+
+typedef struct {
+    char* data[ROWS_IN_CSV];  // Adjust this based on the number of columns in your CSV
+    int num_columns;
+} CSVRow;
+
+#define MAX_LINE_LENGTH 1024
+
+CSVRow* read_csv_row(FILE* fp) {
+    char line[MAX_LINE_LENGTH];
+    CSVRow* row = (CSVRow*)malloc(sizeof(CSVRow));
+    row->num_columns = 0;
+
+    if (fgets(line, MAX_LINE_LENGTH, fp) == NULL) {
+        return NULL;
+    }
+
+    char* token = strtok(line, ",");
+    while (token != NULL && row->num_columns < ROWS_IN_CSV) {
+        row->data[row->num_columns++] = strdup(token);
+        token = strtok(NULL, ",");
+
+    }
+
+    return row;
+}
+
+void free_csv_row(CSVRow* row) {
+    if (row != NULL) {
+        for (int i = 0; i < row->num_columns; ++i) {
+            free(row->data[i]);
+        }
+        free(row);
+    }
+}
+
+int skip_rows(FILE* fp, int num_rows) {
+    char buffer[MAX_LINE_LENGTH];
+    for (int i = 0; i < num_rows; ++i) {
+        if (fgets(buffer, MAX_LINE_LENGTH, fp) == NULL) {
+            return -1;  // Handle cases where the file has fewer rows than expected
+        }
+    }
+    return 0;
+}
+
+CSVRow* get_data_from_closest_time(const char* filename, const char* csv_file, const char* target_column) {
+    FILE* csv_fp = fopen(csv_file, "r");
+    if (csv_fp == NULL) {
+        return NULL;
+    }
+
+    // Extract timestamp from filename (assuming microsecond format)
+    long double timestamp = atol(filename) / 1000000.0;
+
+    CSVRow* closest_row = NULL;
+    long double closest_diff = INFINITY;
+    bool last_row_was_closest = true;
+
+    CSVRow* row;
+    int target_col_index = 0;
+    static int closest_row_index = 0;
+    int row_index = closest_row_index;
+
+    if (skip_rows(csv_fp, closest_row_index) != 0) {
+        printf("Error while skipping rows.\n");
+        fclose(csv_fp);
+        return closest_row;
+    }
+
+    int row_checks_before_found = 1;
+
+    while ((row = read_csv_row(csv_fp)) != NULL) {
+        //printf("Checking row: %i\n", row_index);
+        long double time_value;
+        char* endptr;
+        time_value = strtold(row->data[target_col_index], &endptr);//, 10);
+        if (*endptr != '\0') {
+            // Non-numeric value in target column, skip this row
+            free_csv_row(row);
+            continue;
+        }
+
+        long double diff = abs(time_value - timestamp);
+        if (diff < closest_diff) {
+            last_row_was_closest = true;
+            closest_diff = diff;
+            free_csv_row(closest_row);  // Free previous closest row (if any)
+            closest_row_index = row_index;
+            closest_row = row;
+        }
+        else {
+            free_csv_row(row);  // Free non-matching rows
+            // If the next row is further away, the shortest distance has been passed.
+            if (last_row_was_closest) {
+                fclose(csv_fp);
+                //printf("Row checks before found row: %i\n", row_checks_before_found);
+                return closest_row;
+            }
+            last_row_was_closest = false;
+        }
+        row_index += 1;
+        row_checks_before_found += 1;
+    }
+
+    fclose(csv_fp);
+    //printf("Row checks before found row: %i\n", row_checks_before_found);
+    return closest_row;
+}
 
 // Function to check if coordinates are valid within the grid boundaries
 bool isValidCoordinate(int width, int height, int x, int y) {
@@ -167,7 +280,64 @@ Vector2i GetObstacleGridPosition(const Vector2i& drone_cam_size,
     return { (int)x_grid, (int)y_grid };
 }
 
-bool ProcessImage(const char* filename, const char* directory_path) {
+// Normalize the value to the 0-1 range
+float normalize_value(float value, float min_value, float max_value) {
+    if (min_value == max_value) {
+        return 0.5;
+    }
+
+    return (value - min_value) / (max_value - min_value);
+}
+
+// Normalize the value to the 0-1 range
+double normalize_value(double value, double min_value, double max_value) {
+    if (min_value == max_value) {
+        return 0.5;
+    }
+
+    return (value - min_value) / (max_value - min_value);
+}
+
+Vector2i GetDronePosition(const char* filename, const char* drone_data_file, int grid_width, int grid_height) {
+
+    const char* target_column = "time";
+
+    CSVRow* data = get_data_from_closest_time(filename, drone_data_file, target_column);
+
+    if (data != NULL) {
+        //printf("Data from closest time row:\n");
+        //for (int i = 0; i < data->num_columns; ++i) {
+        //    printf("%s ", data->data[i]);
+        //}
+        //printf("\n");
+        //free_csv_row(data);
+    }
+    else {
+        //printf("No close match found in CSV data.\n");
+    }
+
+    Vector2i drone_pos_grid_clamped = { 0, 0 };
+
+    if (data != NULL) {
+        Vector2f drone_pos_opti = { strtof(data->data[1], NULL), strtof(data->data[2], NULL) }; // meters
+
+        Vector2f arena_size = { 7, 7 }; // meters
+
+        Vector2f drone_pos_opti_norm = { normalize_value(drone_pos_opti.x, -arena_size.x / 2, arena_size.x / 2),
+                                         normalize_value(drone_pos_opti.y, -arena_size.y / 2, arena_size.y / 2) };
+
+        Vector2i drone_pos_grid = { (int)(drone_pos_opti_norm.x * grid_width), (int)(drone_pos_opti_norm.y * grid_height) };
+
+        drone_pos_grid_clamped = { (int)Clamp(drone_pos_grid.x, 0, grid_width - 1), (int)Clamp(drone_pos_grid.y, 0, grid_height - 1) };
+        
+        free_csv_row(data);
+    }
+
+    return drone_pos_grid_clamped;
+}
+
+
+bool ProcessImage(const char* filename, const char* drone_data_file, const char* directory_path) {
     char filepath[PATH_MAX];
     int filename_length = strlen(filename);
 
@@ -191,6 +361,15 @@ bool ProcessImage(const char* filename, const char* directory_path) {
             printf("Error reading image: %s\n", filepath);
             return false;
         }
+
+        //printf("Reading image: %s\n", filename);
+
+
+        // Draw drone position on grid.
+        Vector2i drone_pos_grid_clamped = GetDronePosition(filename, drone_data_file, grid_width, grid_height);
+        cv::circle(grid, cv::Point(drone_pos_grid_clamped.x, drone_pos_grid_clamped.y), 7, 0, -1);
+
+
 
         std::vector<cv::Point> objectDistances = processImageForObjects(image);
         
@@ -220,7 +399,7 @@ bool ProcessImage(const char* filename, const char* directory_path) {
             else {
                 //std::cout << "Adding " << pos.x << "," << pos.y << " to grid" << std::endl;
                 //grid.at<uchar>(pos.y, pos.x) = 0;
-                int circle_radius = 5;
+                int circle_radius = 2;
                 cv::circle(grid, cv::Point(pos.x, pos.y), circle_radius, 0, -1);
             }
 
@@ -264,11 +443,26 @@ int main() {
     InitOpenCVWindows();
 
     // Directory path to drone images relative to src directory
-    char* drone_images_directory_path = "../images/run1";
+    const char* drone_images_directory_path = "../images/run1";
+    const char* drone_data_path = "../data/run1/data.csv";
 
-    ForEachFile(drone_images_directory_path, ProcessImage);
+    ForEachFile(drone_images_directory_path, drone_data_path, ProcessImage);
 
     cv::destroyAllWindows();
 
     return 0;
 }
+
+//int main() {
+
+    //InitOpenCVWindows();
+
+    // Directory path to drone images relative to src directory
+    //char* drone_images_directory_path = "../images/run1";
+
+    //ForEachFile(drone_images_directory_path, ProcessImage);
+
+    //cv::destroyAllWindows();
+
+    //return 0;
+//}
