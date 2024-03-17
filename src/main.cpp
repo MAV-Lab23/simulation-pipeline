@@ -386,21 +386,21 @@ bool ProcessImage(const char* filename, const char* drone_data_file, const char*
             int thickness = 2;
             int lineType = cv::LINE_8;
 
-            Vector2i pos = { objectDistances[i].x, objectDistances[i].y };
+            // Vector2i image_pos = { objectDistances[i].x, objectDistances[i].y };
 
-            //Vector2i pos = GetObstacleGridPosition({ 520, 240 }, { objectDistances[i].x, objectDistances[i].y }, 60, 0, 0, { 0, 0 }, 3);
+            Vector2i grid_pos = GetObstacleGridPosition({ 520, 240 }, { objectDistances[i].x, objectDistances[i].y }, 60, 0, 0, { 0, 0 }, 1.6);
 
-            pos = { (int)Clamp(pos.x, 0, grid_width - 1), (int)Clamp(pos.y, 0, grid_height - 1) };
+            grid_pos = { (int)Clamp(grid_pos.x, 0, grid_width - 1), (int)Clamp(grid_pos.y, 0, grid_height - 1) };
 
             if (grid_pointer != NULL) {
                 //std::cout << "Adding " << pos.x << "," << pos.y << " to grid" << std::endl;
-                setCell(grid_pointer, grid_width, grid_height, pos.x, pos.y, 0);
+                setCell(grid_pointer, grid_width, grid_height, grid_pos.x, grid_pos.y, 0);
             }
             else {
                 //std::cout << "Adding " << pos.x << "," << pos.y << " to grid" << std::endl;
                 //grid.at<uchar>(pos.y, pos.x) = 0;
                 int circle_radius = 2;
-                cv::circle(grid, cv::Point(pos.x, pos.y), circle_radius, 0, -1);
+                cv::circle(grid, cv::Point(grid_pos.x, grid_pos.y), circle_radius, 0, -1);
             }
 
             cv::line(processed_image,
