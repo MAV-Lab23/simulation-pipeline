@@ -7,87 +7,19 @@
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
 
+// SIM
+#include <string>
+#include <iostream>
+#include <filesystem>
+
+namespace fs = std::filesystem;
+
 #define PATH_MAX 4096
 
 #include <stdio.h>
 #include <string.h>
 
-#ifdef _WIN32  // Define for Windows systems
-
-#include <windows.h>
-
-// Function to get all files in a directory (Windows)
-int ForEachFile(const char* directory_path, const char* drone_data_file, bool (*callback)(const char* filename, const char* drone_data_file, const char* directory)) {
-    WIN32_FIND_DATA find_data;
-    HANDLE handle;
-
-    // Combine path with wildcard
-    char path[MAX_PATH];
-    snprintf(path, sizeof(path), "%s\\*", directory_path);
-
-    // Find the first file
-    handle = FindFirstFile(path, &find_data);
-    if (handle == INVALID_HANDLE_VALUE) {
-        printf("Error opening directory: %s\n", directory_path);
-        return 1;
-    }
-
-    // Loop through files
-    do {
-        // Skip "." and ".." directories
-        if (strcmp(find_data.cFileName, ".") == 0 || strcmp(find_data.cFileName, "..") == 0) {
-            continue;
-        }
-
-        // Call the callback function with filename
-        if (callback(find_data.cFileName, drone_data_file, directory_path)) break;
-    } while (FindNextFile(handle, &find_data));
-
-    // Close handle
-    FindClose(handle);
-
-    return 0;
-}
-
-#else  // Define for POSIX-compliant systems (Linux, macOS, etc.)
-
-#include <dirent.h>
-#include <sys/types.h>
-
-// Function to get all files in a directory (POSIX)
-int ForEachFile(const char* directory_path, const char* drone_data_file, bool (*callback)(const char* filename, const char* drone_data_file, const char* directory)) {
-    DIR* dir;
-    struct dirent* entry;
-
-    // Open directory
-    dir = opendir(directory_path);
-    if (dir == NULL) {
-        printf("Error opening directory: %s\n", directory_path);
-        return 1;
-    }
-
-    // Loop through directory entries
-    while ((entry = readdir(dir)) != NULL) {
-        // Skip "." and ".." directories
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue;
-        }
-
-        // Call the callback function with filename
-        if (callback(entry->d_name, drone_data_file, directory_path)) break;
-    }
-
-    // Close directory
-    closedir(dir);
-
-    return 0;
-}
-
-#endif
-
-
-
-#define ROWS_IN_CSV 3
+#define ROWS_IN_CSV 10
 
 typedef struct {
     char* data[ROWS_IN_CSV];  // Adjust this based on the number of columns in your CSV
@@ -237,12 +169,11 @@ void destroyGrid(uchar* in_grid) {
     free(in_grid);
 }
 
-Vector2i GetObstacleGridPosition(const Vector2i& drone_cam_size,
+Vector2f GetObstacleGridPosition(const Vector2i& drone_cam_size,
     const Vector2i& point,
-    float drone_fov_width, /* degrees */
-    float drone_pitch, /* degrees */
-    float drone_heading, /* degrees */
-    const Vector2f& drone_pos,
+    float drone_fov_width, /* radians */
+    float drone_pitch, /* radians */
+    float drone_heading, /* radians */
     float drone_height /* meters */) {
 
     float aspect_ratio = drone_cam_size.y / drone_cam_size.x;
@@ -254,8 +185,8 @@ Vector2i GetObstacleGridPosition(const Vector2i& drone_cam_size,
     int dist_x = point.x - center_x;
     int dist_y = point.y - center_y;
 
-    float frac_screen_y = dist_y / drone_cam_size.y;
-    float frac_screen_x = dist_x / drone_cam_size.x;
+    float frac_screen_x = (float)dist_x / (float)drone_cam_size.x;
+    float frac_screen_y = (float)dist_y / (float)drone_cam_size.y;
 
     float angle_y = frac_screen_y * fov_h;
     float angle_x = frac_screen_x * drone_fov_width;
@@ -274,10 +205,10 @@ Vector2i GetObstacleGridPosition(const Vector2i& drone_cam_size,
     float R_y = sin(drone_heading) + cos(drone_heading);
 
     // TODO: Check that this operation is in correct order.
-    float x_grid = R_x * x_pos_from_drone + drone_pos.x;
-    float y_grid = R_y * y_pos_from_drone + drone_pos.y;
+    float x_grid = R_x * x_pos_from_drone;
+    float y_grid = R_y * y_pos_from_drone;
 
-    return { (int)x_grid, (int)y_grid };
+    return { x_grid, y_grid };
 }
 
 // Normalize the value to the 0-1 range
@@ -298,7 +229,15 @@ double normalize_value(double value, double min_value, double max_value) {
     return (value - min_value) / (max_value - min_value);
 }
 
-Vector2i GetDronePosition(const char* filename, const char* drone_data_file, int grid_width, int grid_height) {
+typedef struct DroneState {
+    Vector2f opti_pos;
+    Vector2i pos;
+    float height;
+    float heading;
+    float pitch;
+} DroneState;
+
+DroneState GetDroneState(const char* filename, const char* drone_data_file, int grid_width, int grid_height, const Vector2f& arena_size, float arena_height) {
 
     const char* target_column = "time";
 
@@ -316,12 +255,20 @@ Vector2i GetDronePosition(const char* filename, const char* drone_data_file, int
         //printf("No close match found in CSV data.\n");
     }
 
+    Vector2f drone_pos_opti = { 0, 0 };
     Vector2i drone_pos_grid_clamped = { 0, 0 };
+    float drone_heading = 0.0f;
+    float drone_pitch = 0.0f;
+    float drone_height = 0.0f;
 
     if (data != NULL) {
-        Vector2f drone_pos_opti = { strtof(data->data[1], NULL), strtof(data->data[2], NULL) }; // meters
+        drone_pos_opti = { strtof(data->data[1], NULL), strtof(data->data[2], NULL) }; // meters
 
-        Vector2f arena_size = { 7, 7 }; // meters
+        drone_heading = strtof(data->data[9], NULL);
+        drone_pitch = strtof(data->data[8], NULL);
+
+        // Convert drone height to positive only values (meters). 
+        drone_height = arena_height * normalize_value(strtof(data->data[3], NULL), -arena_height / 2, arena_height / 2);
 
         Vector2f drone_pos_opti_norm = { normalize_value(drone_pos_opti.x, -arena_size.x / 2, arena_size.x / 2),
                                          normalize_value(drone_pos_opti.y, -arena_size.y / 2, arena_size.y / 2) };
@@ -333,94 +280,118 @@ Vector2i GetDronePosition(const char* filename, const char* drone_data_file, int
         free_csv_row(data);
     }
 
-    return drone_pos_grid_clamped;
+    return { drone_pos_opti, drone_pos_grid_clamped, drone_height, drone_heading, drone_pitch };
 }
 
 
-bool ProcessImage(const char* filename, const char* drone_data_file, const char* directory_path) {
-    char filepath[PATH_MAX];
-    int filename_length = strlen(filename);
-
+bool ProcessImage(const char* filepath, const char* filename, const char* drone_data_file, const char* directory_path) {
     uchar* grid_pointer = NULL;
 
     int grid_width = 300;
     int grid_height = 300;
 
+    Vector2f arena_size = { 10, 10 }; // meters
+    float arena_height = 7.0f; // meters
+
     cv::Mat grid = createGrid(grid_pointer, grid_width, grid_height);
 
     // Check for image extensions (modify as needed)
-    if (filename_length >= 4 &&
-        (strcmp(filename + filename_length - 4, ".jpg") == 0 ||
-            strcmp(filename + filename_length - 4, ".png") == 0)) {
-        // Construct full filepath
-        snprintf(filepath, sizeof(filepath), "%s/%s", directory_path, filename);
+    cv::Mat image = cv::imread(filepath);
+    if (!image.data) {
+        printf("Error reading image: %s\n", filepath);
+        return false;
+    }
 
-        // Read image
-        cv::Mat image = cv::imread(filepath);
-        if (!image.data) {
-            printf("Error reading image: %s\n", filepath);
-            return false;
-        }
-
-        //printf("Reading image: %s\n", filename);
+    //printf("Reading image: %s\n", filename);
 
 
-        // Draw drone position on grid.
-        Vector2i drone_pos_grid_clamped = GetDronePosition(filename, drone_data_file, grid_width, grid_height);
-        cv::circle(grid, cv::Point(drone_pos_grid_clamped.x, drone_pos_grid_clamped.y), 7, 0, -1);
+    // Draw drone position on grid.
+    DroneState drone_state = GetDroneState(filename, drone_data_file, grid_width, grid_height, arena_size, arena_height);
+    cv::circle(grid, cv::Point(drone_state.pos.x, drone_state.pos.y), 7, 0, -1);
 
+    //printf("Drone heading: %f\n", drone_state.heading);
 
+    int thickness = 2;
+    int lineType = cv::LINE_8;
 
-        std::vector<cv::Point> objectDistances = processImageForObjects(image);
+    int dir_mag = 30;
+
+    int x_dir = dir_mag * cos(drone_state.heading);
+    int y_dir = dir_mag * sin(drone_state.heading);
+
+    Vector2i start_pos = Vector2i{ (int)Clamp(drone_state.pos.x, 0, grid_width), (int)Clamp(drone_state.pos.y, 0, grid_height) };
+    Vector2i end_pos = Vector2i{ (int)Clamp(drone_state.pos.x + x_dir, 0, grid_width), (int)Clamp(drone_state.pos.y + y_dir, 0, grid_height) };
+    cv::line(grid,
+        cv::Point(start_pos.x, start_pos.y),
+        cv::Point(end_pos.x, end_pos.y),
+        cv::Scalar(0, 0, 0),
+        thickness,
+        lineType);
         
-        cv::MatSize size = image.size;
-        // OpenCV image size gives [h, w]
-        cv::Point center = { size[1] / 2, size[0] / 2 };
 
-        cv::Mat processed_image;
-        image.copyTo(processed_image);
+    std::vector<cv::Point> objectDistances = processImageForObjects(image);
+        
+    cv::MatSize size = image.size;
+    // OpenCV image size gives [h, w]
+    cv::Point center = { size[1] / 2, size[0] / 2 };
 
-        // Draw lines from center of screen to found obstacles.
-        for (size_t i = 0; i < objectDistances.size(); i++)
-        {
-            int thickness = 2;
-            int lineType = cv::LINE_8;
+    cv::Mat processed_image;
+    image.copyTo(processed_image);
 
-            Vector2i pos = { objectDistances[i].x, objectDistances[i].y };
+    // Draw lines from center of screen to found obstacles.
+    for (size_t i = 0; i < objectDistances.size(); i++)
+    {
 
-            //Vector2i pos = GetObstacleGridPosition({ 520, 240 }, { objectDistances[i].x, objectDistances[i].y }, 60, 0, 0, { 0, 0 }, 3);
+        Vector2i pos = { objectDistances[i].x, objectDistances[i].y };
 
-            pos = { (int)Clamp(pos.x, 0, grid_width - 1), (int)Clamp(pos.y, 0, grid_height - 1) };
+        Vector2f grid_offset_pos = GetObstacleGridPosition({ 520, 240 }, { objectDistances[i].x, objectDistances[i].y }, DegToRad(72.0f), drone_state.pitch, drone_state.heading, drone_state.height);
 
-            if (grid_pointer != NULL) {
-                //std::cout << "Adding " << pos.x << "," << pos.y << " to grid" << std::endl;
-                setCell(grid_pointer, grid_width, grid_height, pos.x, pos.y, 0);
-            }
-            else {
-                //std::cout << "Adding " << pos.x << "," << pos.y << " to grid" << std::endl;
-                //grid.at<uchar>(pos.y, pos.x) = 0;
-                int circle_radius = 2;
-                cv::circle(grid, cv::Point(pos.x, pos.y), circle_radius, 0, -1);
-            }
+        Vector2f point_opti_pos = { normalize_value(drone_state.opti_pos.x + grid_offset_pos.x, -arena_size.x / 2, arena_size.x / 2),
+                                    normalize_value(drone_state.opti_pos.y + grid_offset_pos.y, -arena_size.y / 2, arena_size.y / 2) };
 
-            cv::line(processed_image,
-                center,
-                objectDistances[i],
-                cv::Scalar(0, 0, 0),
-                thickness,
-                lineType);
+        Vector2i point_pos_grid = { (int)(point_opti_pos.x * grid_width), (int)(point_opti_pos.y * grid_height) };
+
+        Vector2i point_pos_grid_clamped = { (int)Clamp(point_pos_grid.x, 0, grid_width - 1), (int)Clamp(point_pos_grid.y, 0, grid_height - 1) };
+
+
+        //printf("grid_offset_pos: %f", grid_offset_pos.x);
+        //printf(",%f\n", grid_offset_pos.y);
+
+        pos = { (int)Clamp(pos.x, 0, grid_width - 1), (int)Clamp(pos.y, 0, grid_height - 1) };
+        //grid_offset_pos = { (int)Clamp(grid_offset_pos.x, 0, grid_width - 1), (int)Clamp(grid_offset_pos.y, 0, grid_height - 1) };
+
+        if (grid_pointer != NULL) {
+            //std::cout << "Adding " << pos.x << "," << pos.y << " to grid" << std::endl;
+            setCell(grid_pointer, grid_width, grid_height, pos.x, pos.y, 0);
+        }
+        else {
+            //std::cout << "Adding " << pos.x << "," << pos.y << " to grid" << std::endl;
+            //grid.at<uchar>(pos.y, pos.x) = 0;
+            int circle_radius = 2;
+            //cv::circle(grid, cv::Point(pos.x, pos.y), circle_radius, 0, -1);
+            cv::circle(grid, cv::Point(point_pos_grid_clamped.x, point_pos_grid_clamped.y), circle_radius, 0, -1);
         }
 
+        cv::line(processed_image,
+            { center.x, size[1] },
+            objectDistances[i],
+            cv::Scalar(0, 0, 0),
+            thickness,
+            lineType);
+    }
 
-        // Display image.
-        cv::imshow("Image", image);
-        cv::imshow("Processed", processed_image);
-        cv::imshow("Grid", grid);
 
-        if (cv::waitKey(30) == 27) // Wait for 'esc' key press to exit
-        {
-            return true;
-        }
+    // Display image.
+    cv::imshow("Image", image);
+    cv::imshow("Final", processed_image);
+    cv::imshow("Grid", grid);
+
+    // Pause before going to next frame.
+    cv::waitKey(0);
+
+    if (cv::waitKey(30) == 27) // Wait for 'esc' key press to exit
+    {
+        return true;
     }
 
     destroyGrid(grid_pointer);
@@ -430,12 +401,22 @@ bool ProcessImage(const char* filename, const char* drone_data_file, const char*
 
 void InitOpenCVWindows() {
     cv::namedWindow("Image");
-    cv::namedWindow("Processed");
+    cv::namedWindow("Final");
+    cv::namedWindow("Floor");
+    cv::namedWindow("Filtered");
     cv::namedWindow("Grid");
+    cv::namedWindow("Intermediate1");
+    cv::namedWindow("Intermediate2");
+    cv::namedWindow("Intermediate3");
 
-    cv::moveWindow("Image", 30, 30);
-    cv::moveWindow("Processed", 30 + 720, 30);
-    cv::moveWindow("Grid", 30, 30 + 300);
+    cv::moveWindow("Image",           0,           0);
+    cv::moveWindow("Final",           0,         275);
+    cv::moveWindow("Floor",         530,           0);
+    cv::moveWindow("Filtered",      530,         275);
+    cv::moveWindow("Grid",          530 * 2,       0);
+    cv::moveWindow("Intermediate1", 0,       275 * 2 + 9);
+    cv::moveWindow("Intermediate2", 530,     275 * 2 + 9);
+    cv::moveWindow("Intermediate3", 530 * 2, 275 * 2 + 9);
 }
 
 int main() {
@@ -443,10 +424,20 @@ int main() {
     InitOpenCVWindows();
 
     // Directory path to drone images relative to src directory
-    const char* drone_images_directory_path = "../images/run1";
-    const char* drone_data_path = "../data/run1/data.csv";
+    std::string drone_images_directory_path = "../images/run1";
+    std::string drone_data_path = "../data/run1/data.csv";
 
-    ForEachFile(drone_images_directory_path, drone_data_path, ProcessImage);
+    std::vector<fs::path> images;
+
+    for (const auto& entry : fs::directory_iterator(drone_images_directory_path))
+        images.push_back(entry.path());
+
+    std::sort(images.begin(), images.end(), [](const auto& path1, const auto& path2) {
+        return std::stoi(path1.filename().string()) < std::stoi(path2.filename().string());
+    });
+
+    for (const auto& path : images)
+        ProcessImage(path.string().c_str(), path.filename().string().c_str(), drone_data_path.c_str(), drone_images_directory_path.c_str());
 
     cv::destroyAllWindows();
 
