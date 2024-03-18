@@ -333,7 +333,30 @@ cv::Mat filterDots(const cv::Mat & image, int search_radius, int min_neighbors) 
 	return filtered_image;
 }
 
+// Function to undistort points using the fisheye model
+void undistortObjectPoints(const std::vector<cv::Point2f>& distortedPoints,
+	std::vector<cv::Point2f>& undistortedPoints,
+	const cv::Mat& cameraMatrix,
+	const cv::Mat& distCoeffs) {
+	// Ensure output vector is empty
+	undistortedPoints.clear();
 
+	// Check if input points are not empty
+	if (!distortedPoints.empty()) {
+		// Convert distorted points to the correct format
+		std::vector<cv::Point2f> distortedPointsMat(distortedPoints.begin(), distortedPoints.end());
+
+		// Undistort the points
+		cv::fisheye::undistortPoints(distortedPointsMat, undistortedPoints, cameraMatrix, distCoeffs);
+
+		// If you want to project points back to image space after undistortion (optional)
+		// cv::fisheye::undistortPoints(distortedPointsMat, undistortedPoints, cameraMatrix, distCoeffs, cv::noArray(), cameraMatrix);
+	}
+	else {
+		// Handle the case where there are no points to undistort
+		std::cout << "No points to undistort." << std::endl;
+	}
+}
 
 cv::Mat isolateGreenFloor(const cv::Mat& image, cv::Mat& isolatedFloor, cv::Mat& mask) {
 	// Convert image to HSV
@@ -359,6 +382,7 @@ cv::Mat isolateGreenFloor(const cv::Mat& image, cv::Mat& isolatedFloor, cv::Mat&
 
 	return mask;
 }
+
 void detectFloorBorder(const cv::Mat& processedImage, std::vector<int>& floorBorder) {
 	for (int x = 0; x < processedImage.cols; ++x) {
 		for (int y = processedImage.rows - 1; y >= 0; --y) {
