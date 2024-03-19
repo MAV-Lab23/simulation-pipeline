@@ -1,172 +1,25 @@
 #pragma once
 
-#include <types.h>
-#include <constants.h>
-#include <utility.h>
-#include <opencv2/core/mat.hpp>
-
-#include <opencv2/opencv.hpp>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
 
-/*
-// Function to filter points based on neighboring points within a radius
-cv::Mat filterPoints(const cv::Mat& points) {
-	// Input: points - Mat of size (N, 1, CV_32F) where N is the number of points and each row represents a point (x, y)
-	// Output: filtered_points - Mat of same size and type as points containing only points near big clumps
+#include <opencv2/core/mat.hpp>
+#include <opencv2/opencv.hpp>
 
-	// Parameters (adjust these based on your data)
-	int min_neighbors = 10;  // Minimum number of neighbors for a clump
-	float search_radius = 10.0f;  // Radius to search for neighbors
-
-	// Allocate memory for neighbor indices and distances
-	int* neighbors = (int*)malloc(100 * sizeof(int));
-	float* distances = (float*)malloc(100 * sizeof(float));
-
-	// Create output point container
-	cv::Mat filtered_points = cv::Mat::zeros(points.rows, 1, CV_32F);
-
-	// Iterate through each point
-	for (int i = 0; i < points.rows; i++) {
-		// Get current point
-		cv::Vec2f current_point = points.at<cv::Vec2f>(i, 0);
-
-		// Search for neighbors within radius (brute-force approach)
-		int num_neighbors = 0;
-		for (int j = 0; j < points.rows; j++) {
-			if (i == j) {
-				continue; // Skip itself
-			}
-
-			cv::Vec2f neighbor_point = points.at<cv::Vec2f>(j, 0);
-			float distance = sqrtf(powf(current_point[0] - neighbor_point[0], 2.0f) + powf(current_point[1] - neighbor_point[1], 2.0f));
-			if (distance <= search_radius) {
-				neighbors[num_neighbors] = j;
-				distances[num_neighbors] = distance;
-				num_neighbors++;
-			}
-		}
-
-		// Check if point has enough neighbors and copy it to the filtered set
-		if (num_neighbors >= min_neighbors) {
-			filtered_points.at<cv::Vec2f>(i, 0) = current_point;
-		}
-	}
-
-	// Free allocated memory
-	free(neighbors);
-	free(distances);
-
-	return filtered_points;
-}
-*/
+#include <types.h>
+#include <constants.h>
+#include <utility.h>
 
 using Contour = std::vector<cv::Point>;
 
-cv::Mat WeightedCombine(const cv::Mat& addition, const cv::Mat& storage, float addition_weight) {
+cv::Mat weightedCombine(const cv::Mat& addition, const cv::Mat& storage, float addition_weight) {
 	assert(addition_weight >= 0.0f && addition_weight <= 1.0f);
 
 	float storage_weight = 1.0f - addition_weight;
 
 	return addition_weight * addition + storage_weight * storage;
-}
-
-// Function to filter noise in an image
-cv::Mat filterNoise(const cv::Mat& image) {
-	// Input: image - Grayscale image
-
-	// Parameters (adjust these based on your noise characteristics)
-	int blur_kernel_size = 3;  // Kernel size for blurring
-	double threshold_value = 127;  // Threshold for removing low-intensity noise
-
-	// 1. Apply blurring to reduce high-frequency noise (consider Gaussian blur for better results)
-	cv::Mat blurred_image;
-	cv::GaussianBlur(image, blurred_image, cv::Size(blur_kernel_size, blur_kernel_size), 0); // Adjust sigma based on noise
-
-	// 2. Apply thresholding to remove low-intensity noise
-	cv::Mat filtered_image;
-	cv::threshold(blurred_image, filtered_image, threshold_value, 255, cv::THRESH_BINARY);
-
-	// 3. (Optional) Morphological operations for further refinement (adjust based on noise)
-	// cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-	// cv::erode(filtered_image, filtered_image, element);  // Remove small isolated noise spots
-	// cv::dilate(filtered_image, filtered_image, element);  // Restore potential edge details
-
-	return filtered_image;
-}
-
-
-
-// Function to check if a point is a core point
-bool isCorePoint(const std::vector<cv::Point>& points, double eps, int min_pts, int point_idx, const std::vector<int>& labels) {
-	int num_neighbors = 0;
-
-	// Iterate through all points
-	for (int i = 0; i < points.size(); i++) {
-		if (point_idx != i && labels[i] != 0) {  // Exclude itself and noise points
-			double distance = cv::norm(points[point_idx] - points[i]);
-			if (distance <= eps) {
-				num_neighbors++;
-			}
-		}
-	}
-
-	return num_neighbors >= min_pts;
-}
-
-// Function to recursively expand a cluster
-void expandCluster(const std::vector<cv::Point>& points, double eps, int min_pts, int point_idx, int cluster_id, std::vector<int>& labels, int& current_cluster_size) {
-	labels[point_idx] = cluster_id;  // Assign cluster ID
-	current_cluster_size++;
-
-	// Find neighbors within eps
-	std::vector<int> neighbors;
-	for (int i = 0; i < points.size(); i++) {
-		if (point_idx != i && labels[i] == -1) {  // Unvisited points
-			double distance = cv::norm(points[point_idx] - points[i]);
-			if (distance <= eps) {
-				neighbors.push_back(i);
-			}
-		}
-	}
-
-	// Recursively visit unvisited neighbors
-	for (int neighbor_idx : neighbors) {
-		if (labels[neighbor_idx] == -1) {
-			expandCluster(points, eps, min_pts, neighbor_idx, cluster_id, labels, current_cluster_size);
-		}
-	}
-}
-// Function to implement DBSCAN clustering
-std::vector<int> dbscan(const std::vector<cv::Point>& points, double eps, int min_pts, int& largest_cluster_size) {
-	// Input:
-	//  - points: Vector of Point structures representing data points
-	//  - eps: Search radius for neighborhood definition
-	//  - min_pts: Minimum number of neighbors to be considered a core point
-
-	// Initialize variables
-	int n_points = points.size();
-	std::vector<int> labels(n_points, -1);  // -1: Unvisited, 0: Noise, 1+: Cluster ID
-	int cluster_id = 0;
-
-	// Iterate through each data point
-	for (int i = 0; i < n_points; i++) {
-		if (labels[i] == -1) {  // Unvisited point
-			int current_cluster_size = 0;
-			if (isCorePoint(points, eps, min_pts, i, labels)) {
-				cluster_id++;
-				expandCluster(points, eps, min_pts, i, cluster_id, labels, current_cluster_size);
-				largest_cluster_size = std::max(largest_cluster_size, current_cluster_size);
-			}
-			else {
-				labels[i] = 0;  // Mark as noise
-			}
-		}
-	}
-
-	return labels;
 }
 
 std::vector<cv::Point> clampContourY(const std::vector<cv::Point>& contour, int y_threshold) {
@@ -179,8 +32,6 @@ std::vector<cv::Point> clampContourY(const std::vector<cv::Point>& contour, int 
 }
 
 cv::Mat extractLargestContour(const cv::Mat & image, std::vector<std::vector<cv::Point>>& floor_cns, std::vector<std::vector<cv::Point>>& above_cns) {
-	// Input: Grayscale image (assumed)
-
 	// Preprocessing (optional)
 	// You might need additional preprocessing steps depending on your image characteristics
 
@@ -277,85 +128,13 @@ cv::Mat extractLargestContour(const cv::Mat & image, std::vector<std::vector<cv:
 		}
 	}
 
+	// Draw horizon line.
+	//cv::line(filtered_image, cv::Point(0, previous_highest_y), cv::Point(filtered_image.cols, previous_highest_y), cv::Scalar(255), 2);
 
-	int thickness = 2;
-	int lineType = cv::LINE_8;
-
-	//cv::line(filtered_image, cv::Point(0, previous_highest_y), cv::Point(filtered_image.cols, previous_highest_y), cv::Scalar(255), thickness, lineType);
-
-	//std::vector<std::vector<cv::Point>> below_horizon;
-
-
-	cv::drawContours(filtered_image, floor_cns, -1, cv::Scalar(255), cv::FILLED);  // White color
-	cv::drawContours(filtered_image, above_cns, -1, cv::Scalar(255), cv::FILLED);  // White color
+	cv::drawContours(filtered_image, floor_cns, -1, cv::Scalar(255), cv::FILLED);
+	cv::drawContours(filtered_image, above_cns, -1, cv::Scalar(255), cv::FILLED);
 
 	return filtered_image;
-}
-
-
-// Function to filter isolated green dots
-cv::Mat filterDots(const cv::Mat & image, int search_radius, int min_neighbors) {
-	// Input:
-	//  - image: Grayscale image (assumed black background with green dots)
-	//  - search_radius: Radius to search for neighbors
-	//  - min_neighbors: Minimum number of neighbors for a dot to be considered part of a clump
-
-	// Check if image is grayscale (assuming black background)
-
-	cv::Mat single_channel;
-	cv::cvtColor(image, single_channel, cv::COLOR_BGR2GRAY);
-
-	// Find non-zero elements (green dots)
-	std::vector<cv::Point> dot_locations;
-	cv::findNonZero(single_channel, dot_locations);
-
-	// Create output image (same size and type as input)
-	cv::Mat filtered_image = cv::Mat::zeros(single_channel.rows, single_channel.cols, CV_8UC1);
-
-	
-	// DBSCAN parameters
-	double eps = 1.5;
-	int min_pts = 2;
-
-	int largest_cluster = 0;
-
-	// Run DBSCAN
-	//std::vector<int> labels = dbscan(dot_locations, eps, min_pts, largest_cluster);
-
-	// Print cluster labels (optional)
-	for (int i = 0; i < dot_locations.size(); i++) {
-		//if (labels[i] > 0 && labels[i] == largest_cluster) {
-		filtered_image.at<uchar>(dot_locations[i].y, dot_locations[i].x) = 255;
-		//}
-	}
-
-
-	return filtered_image;
-}
-
-// Function to undistort points using the fisheye model
-void undistortObjectPoints(const std::vector<cv::Point2f>& distortedPoints,
-	std::vector<cv::Point2f>& undistortedPoints,
-	const cv::Mat& cameraMatrix,
-	const cv::Mat& distCoeffs) {
-	// Ensure output vector is empty
-	undistortedPoints.clear();
-
-	// Check if input points are not empty
-	if (!distortedPoints.empty()) {
-		// Convert distorted points to the correct format
-		std::vector<cv::Point2f> distortedPointsMat(distortedPoints.begin(), distortedPoints.end());
-
-		// Undistort the points
-		cv::fisheye::undistortPoints(distortedPointsMat, undistortedPoints, cameraMatrix, distCoeffs);
-
-		// If you want to project points back to image space after undistortion (optional)
-		// cv::fisheye::undistortPoints(distortedPointsMat, undistortedPoints, cameraMatrix, distCoeffs, cv::noArray(), cameraMatrix);
-	}
-	else {
-		// Handle the case where there are no points to undistort
-		std::cout << "No points to undistort." << std::endl;
-	}
 }
 
 cv::Mat isolateGreenFloor(const cv::Mat& image, cv::Mat& isolatedFloor, cv::Mat& mask) {
@@ -363,15 +142,9 @@ cv::Mat isolateGreenFloor(const cv::Mat& image, cv::Mat& isolatedFloor, cv::Mat&
 	cv::Mat hsvImage;
 	cv::cvtColor(image, hsvImage, cv::COLOR_BGR2HSV);
 
-	cv::Mat mask1, mask2;
-
 	// Define range of green color in HSV
-	// Threshold the HSV image to get only green colors
+	// Threshold the HSV image to get only green color.
 	cv::inRange(hsvImage, cv::Scalar(20, 0, 0), cv::Scalar(80, 255, 220), mask);
-
-	//cv::inRange(hsvImage, cv::Scalar(15, 150, 100), cv::Scalar(20, 255, 255), mask1);  // Detect yellow range
-	//cv::bitwise_not(mask1 | mask2, mask1);  // Invert to exclude these ranges
-	//cv::bitwise_and(mask1, mask, mask);  // Invert to exclude these ranges
 
 	// Erode and dilate to remove noise
 	cv::erode(mask, mask, cv::Mat(), cv::Point(-1, -1), 1);
@@ -562,6 +335,13 @@ double getCircleRadius(const cv::RotatedRect& rect) {
 	return std::sqrt(std::max(half_width * half_width, half_height * half_height));
 }
 
+double distanceToLine(cv::Point line_start, cv::Point line_end, cv::Point point)
+{
+	double normalLength = _hypot(line_end.x - line_start.x, line_end.y - line_start.y);
+	if (normalLength == 0.0) return 0;
+	double distance = (double)((point.x - line_start.x) * (line_end.y - line_start.y) - (point.y - line_start.y) * (line_end.x - line_start.x)) / normalLength;
+	return abs(distance);
+}
 
 std::vector<cv::Point> processImageForObjects(const cv::Mat& inputImage) {
 	// Ensure the input image is not empty
@@ -602,8 +382,6 @@ std::vector<cv::Point> processImageForObjects(const cv::Mat& inputImage) {
 
 	cv::imshow("Intermediate1", processedMask);
 
-	cv::Mat dilated;
-	cv::dilate(processedMask, dilated, kernel, cv::Point(-1, -1), 2);
 
 	if (floor_cns.size() > 0) {
 		cv::Mat drawing = cv::Mat::zeros(contour_edges.size(), CV_8UC1);
@@ -628,30 +406,48 @@ std::vector<cv::Point> processImageForObjects(const cv::Mat& inputImage) {
 			double circle_radius = getCircleRadius(min_area_rect);
 			cv::circle(drawing, circle_center, round(circle_radius), cv::Scalar(255), 2);  // Red for circle
 		}
-		//contour_edges = addRedLinesToContour(contour_edges, border_counter);
-
-		// Draw or process the fitted trapezoid (example using bounding rectangle)
-		//if (fitted_trapezoid.size.width > 0) {
-		//	cv::Rect box = fitted_trapezoid.boundingRect();
-		//	cv::rectangle(contour_edges, box, cv::Scalar(0, 255, 0), 2);  // Draw green rectangle around the fitted trapezoid
-		//}
-
-		//Contour smoothed_border_counter = smoothContour(border_counter);
-
-		//cv::drawContours(contour_edges, smoothed_border_counter, -1, cv::Scalar(255), 5);  // White color
-
-		//cv::Vec4i line = getLongestLine(border_counter);
-
-		//int thickness = 2;
-		//int lineType = cv::LINE_8;
-
-		//cv::line(contour_edges, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), cv::Scalar(255), thickness, lineType);
-
-
 		cv::imshow("Intermediate2", drawing);
-	}
 
-	cv::imshow("Intermediate3", dilated);
+		std::vector<cv::Point> hull;
+		cv::convexHull(floor_cns[0], hull, true); // Clockwise orientation, return points
+
+		int distance_threshold = 20;
+		int dist_thresh2 = distance_threshold * distance_threshold;
+
+		std::vector<cv::Point> non_hull_points;
+
+		cv::Mat hull_outliers = inputImage;//cv::Mat::zeros(isolatedFloor.size(), CV_8UC3);
+
+		/*for (auto& hull_point : hull)
+		{
+			cv::circle(hull_outliers, hull_point, 1, cv::Scalar(255, 0, 0), 2);
+		}*/
+
+		for (auto& pointC : floor_cns[0]) {
+	
+			bool skip = false;
+			for (size_t i = 0; i < hull.size() - 1; ++i) {
+				cv::Point pointA = hull[i];
+				cv::Point pointB = hull[i + 1];
+
+				if (distanceToLine(pointA, pointB, pointC) < distance_threshold) {
+					skip = true;
+					break;
+				}
+			}
+			if (!skip) {
+				non_hull_points.push_back(pointC);
+			}
+		}
+
+		for (int i = 0; i < non_hull_points.size(); i++) {
+			cv::circle(hull_outliers, non_hull_points[i], 1, cv::Scalar(0, 0, 255), 2);
+		}
+
+		//cv::dilate(dilated, dilated, kernel, cv::Point(-1, -1), 2);
+
+		cv::imshow("Intermediate3", hull_outliers);
+	}
 
 	// Detect and smooth the floor border
 	std::vector<int> floorBorder(width, 0);
@@ -659,16 +455,9 @@ std::vector<cv::Point> processImageForObjects(const cv::Mat& inputImage) {
 	detectFloorBorder(processedMask, floorBorder);
 	smoothFloorBorder(floorBorder, smoothedBorder);
 
-
 	// Detect object positions along the floor border
 	std::vector<cv::Point> objectPositions;
 	detectObjectPositions(smoothedBorder, objectPositions);
-
-	// The function does not need to return the image itself;
-	// objectDistances will contain the positions and distances of detected objects.
-
-	// Optional: Visualize results on the image
-	// ... (visualization code omitted for brevity) ...
 
 	return objectPositions;
 }
