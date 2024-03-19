@@ -1,83 +1,227 @@
 #pragma once
 
-#include <stdlib.h>
-#include <shape.h>
-#include <colors.h>
 #include <types.h>
-#include <math.h>
+#include <utility.h>
 
-void DroneInit(Drone* self, Vector2i starting_pos, float starting_angle /*degrees*/) {
-	self->pos = starting_pos;
-	self->angle = starting_angle;
-	self->r_angle = DegToRad(starting_angle);
-	assert(DRONE_FOV_ANGLE <= 90); // "Angles above 90 do not follow the formula" 
-	self->fov_half_angle = DegToRad(DRONE_FOV_ANGLE / 2);
-	self->fov_cells = CreateEmptyGrid();
-	self->drone_cells = CreateEmptyGrid();
+#ifdef IN_PAPARAZZI
+
+#include "state.h"
+
+// TODO: Implement paparazzi version of GetDroneState
+DroneState getDroneState() {
+    Vector3f optitrack_pos = { stateGetPositionEnu_f()->x, stateGetPositionEnu_f()->y, stateGetPositionEnu_f()->z };
+    Vector3f optitrack_angle = { stateGetNedToBodyEulers_f()->phi, stateGetNedToBodyEulers_f()->theta, stateGetNedToBodyEulers_f()->psi };
+    return { optitrack_pos, optitrack_angle };
 }
 
-void DroneRotate(Drone* self, float angle_diff) {
-	// Modulo for negative numbers
-	self->angle = (((int)(self->angle + angle_diff) % 360) + 360) % 360;
-	self->r_angle = DegToRad(self->angle);
+#else
+
+#include <vector>
+#include <string>
+#include <filesystem>
+#include <iostream>
+#include <cassert>
+#include <algorithm>
+
+#include <opencv2/opencv.hpp>
+
+#include <parser.hpp>
+
+long double getImageTimestamp(const std::filesystem::path& path) {
+    // Convert from microseconds to seconds.
+    return std::stol(path.filename().string()) / 1000000.0;
 }
 
-// dir = 1->forward, dir = -1->backward
-void DroneMove(Drone* self, float distance, int dir) {
-	float x_movement = dir * distance * cos(self->r_angle);
-	float y_movement = dir * distance * sin(self->r_angle);
-	self->pos = Vector2i{
-		Clamp(self->pos.x + (int)x_movement, 0, GRID_DIMENSIONS.x),
-		Clamp(self->pos.y + (int)y_movement, 0, GRID_DIMENSIONS.y)
-	};
+std::vector<DroneData> getDroneData(
+    const std::filesystem::path& drone_images_directory,
+    const std::filesystem::path& cache_data_directory,
+    const std::filesystem::path& drone_data_directory,
+    const std::filesystem::path& drone_data_file) {
+    if (!std::filesystem::is_directory(cache_data_directory) || 
+        !std::filesystem::exists(cache_data_directory)) {
+        std::filesystem::create_directory(cache_data_directory);
+    }
+
+    std::vector<std::filesystem::path> sorted_paths;
+
+    for (const auto& entry : std::filesystem::directory_iterator(drone_images_directory)) {
+        sorted_paths.push_back(entry.path());
+    }
+
+    std::sort(sorted_paths.begin(), sorted_paths.end(), [](const auto& path1, const auto& path2) {
+        return std::stoi(path1.filename().string()) < std::stoi(path2.filename().string());
+    });
+
+    std::vector<DroneData> drone_data;
+
+    drone_data.reserve(sorted_paths.size());
+
+    std::filesystem::path cache_file = cache_data_directory / drone_data_file;
+
+    if (std::filesystem::exists(cache_file)) {
+
+        std::cout << "Reading drone data from cache file at: " << cache_file << std::endl;
+
+        std::ifstream f(cache_file);
+
+        aria::csv::CsvParser parser(f);
+
+        int row_index = 0;
+
+        for (auto& row : parser) {
+            if (row_index == 0) {
+                row_index += 1;
+                continue; // Skip label row.
+            }
+
+            int image_index = std::stoi(row[0]);
+
+            const std::string filepath = sorted_paths[image_index].string();
+
+            Image img = cv::imread(filepath);
+
+            if (!img.data) {
+                std::cout << "Error reading image: " << filepath << std::endl;
+                row_index += 1;
+                continue;
+            }
+
+            DroneState state;
+            state.optitrack_pos = { std::stof(row[1]), std::stof(row[2]), std::stof(row[3]) };
+            state.optitrack_angle = { std::stof(row[4]), std::stof(row[5]), std::stof(row[6]) };
+
+            drone_data.push_back({ img, state });
+
+            row_index += 1;
+        }
+
+    } else {
+
+        std::ifstream f(drone_data_directory / drone_data_file);
+        aria::csv::CsvParser parser(f);
+
+        std::vector<long double> indexes;
+        std::vector<long double> x;
+        std::vector<long double> y;
+        std::vector<long double> z;
+        std::vector<long double> phi;
+        std::vector<long double> theta;
+        std::vector<long double> psi;
+
+        assert(sorted_paths.size() > 0);
+
+        int row_index = 0;
+        int image_index = 0;
+        long double previous_time = 0;
+        DroneState previous_state;
+
+        std::cout << "Parsing drone images and data..." << std::endl;
+
+        for (auto& row : parser) {
+            if (row_index == 0) {
+                row_index += 1;
+                continue; // Skip label row.
+            }
+
+            long double time = std::stold(row[0]);
+
+            DroneState state;
+            state.optitrack_pos = { std::stof(row[1]), std::stof(row[2]), std::stof(row[3]) };
+            state.optitrack_angle = { std::stof(row[7]), std::stof(row[8]), std::stof(row[9]) };
+
+            if (image_index >= sorted_paths.size()) break;
+
+            long double image_timestamp = getImageTimestamp(sorted_paths[image_index]);
+
+            if (time >= image_timestamp) {
+
+                const std::string filepath = sorted_paths[image_index].string();
+
+                Image img = cv::imread(filepath);
+
+                if (!img.data) {
+                    std::cout << "Error reading image: " << filepath << std::endl;
+                    row_index += 1;
+                    continue;
+                }
+
+                const long double prev_diff = abs(image_timestamp - previous_time);
+                const long double diff = abs(image_timestamp - time);
+
+                DroneState chosen_state = prev_diff > diff ? previous_state : state;
+
+                drone_data.push_back({ img, chosen_state });
+
+                indexes.push_back(image_index);
+                x.push_back(chosen_state.optitrack_pos.x);
+                y.push_back(chosen_state.optitrack_pos.y);
+                z.push_back(chosen_state.optitrack_pos.z);
+                phi.push_back(chosen_state.optitrack_angle.x);
+                theta.push_back(chosen_state.optitrack_angle.y);
+                psi.push_back(chosen_state.optitrack_angle.z);
+
+                if (image_index % 30 == 0) {
+                    std::cout << "Parsed " << (int)((double)image_index / (double)sorted_paths.size() * 100.0) << "% of images..." << std::endl;
+                }
+                image_index++;
+            }
+            row_index += 1;
+            previous_time = time;
+            previous_state = state;
+        }
+
+        std::cout << "Image parsing complete!" << std::endl;
+
+        assert(drone_data.size() <= sorted_paths.size());
+
+        writeCSV(cache_file, { { "index", indexes }, { "x", x }, { "y", y }, { "z", z }, { "phi", phi }, { "theta", theta }, { "psi", psi } });
+
+        std::cout << "Created cache file at: " << cache_file << std::endl;
+    }
+    return drone_data;
 }
 
-// Returns 3 corners of fov : drone pos, right edge corner, left edge corner
-FOV DroneGetFOV(Drone* self) {
-	int right_edge_x = DRONE_FOV_DEPTH * cos(self->r_angle + self->fov_half_angle);
-	int right_edge_y = DRONE_FOV_DEPTH * sin(self->r_angle + self->fov_half_angle);
-	int left_edge_x = DRONE_FOV_DEPTH * cos(self->r_angle - self->fov_half_angle);
-	int left_edge_y = DRONE_FOV_DEPTH * sin(self->r_angle - self->fov_half_angle);
-	Vector2i right_pos = Vector2i{ Clamp(self->pos.x + right_edge_x, 0, GRID_DIMENSIONS.x), Clamp(self->pos.y + right_edge_y, 0, GRID_DIMENSIONS.y) };
-	Vector2i left_pos = Vector2i{ Clamp(self->pos.x + left_edge_x, 0, GRID_DIMENSIONS.x), Clamp(self->pos.y + left_edge_y, 0, GRID_DIMENSIONS.y) };
-	Vector2i pos = Vector2i{ Clamp(self->pos.x, 0, GRID_DIMENSIONS.x), Clamp(pos.y, 0, GRID_DIMENSIONS.y) };
-	return { pos, right_pos, left_pos };
-}
+#endif
 
-bool DroneObjectInFOV(Drone* self, const Vector2i& point) {
-	FOV fov = DroneGetFOV(self);
+Vector2f getObstacleGridPosition(
+    const Vector2i& drone_cam_size,
+    const Vector2i& point,
+    float drone_fov_width,
+    const DroneState& drone_state) {
 
-	Vector2i v1 = Vector2i{ point.x - fov.pos.x, point.y - fov.pos.y };
-	Vector2i v2 = Vector2i{ point.x - fov.left_pos.x, point.y - fov.left_pos.y };
-	Vector2i v3 = Vector2i{ point.x - fov.right_pos.x, point.y - fov.right_pos.y };
+    float aspect_ratio = drone_cam_size.y / drone_cam_size.x;
+    int center_x = drone_cam_size.x / 2;
+    int center_y = drone_cam_size.y / 2;
 
-	// Calculate the cross products
-	int c1 = v1.x * v2.y - v1.y * v2.x;
-	int c2 = v2.x * v3.y - v2.y * v3.x;
-	int c3 = v3.x * v1.y - v3.y * v1.x;
+    float fov_h = drone_fov_width * aspect_ratio;
 
-	// Check if all cross products have the same sign(inside or outside the triangle)
-	return (c1 > 0 && c2 > 0 && c3 > 0) || (c1 < 0 && c2 < 0 && c3 < 0);
-}
+    int dist_x = point.x - center_x;
+    int dist_y = point.y - center_y;
 
-void DroneResetCellsInFOV(Drone* self) {
-	for (int j = 0; j < GRID_SIZE.y; j++)
-	{
-		int offset = j * GRID_SIZE.x;
-		for (int i = 0; i < GRID_SIZE.x; i++)
-		{
-			int index = i + offset;
-			Vector2i coord{ i, i };
-			if (DroneObjectInFOV(self, coord)) {
-				self->fov_cells[index] = 1;
-			} else {
-				self->fov_cells[index] = 0;
-			}
-		}
-	}
-}
+    float frac_screen_x = (float)dist_x / (float)drone_cam_size.x;
+    float frac_screen_y = (float)dist_y / (float)drone_cam_size.y;
 
-void DroneUpdate(Drone* self) {
-	SetCircleCells(self->drone_cells, self->pos, DRONE_RADIUS);
-	DroneResetCellsInFOV(self);
+    float angle_y = frac_screen_y * fov_h;
+    float angle_x = frac_screen_x * drone_fov_width;
+
+    // anti clockwise is positive
+
+    float heading = drone_state.optitrack_angle.z;
+
+    float line_angle = drone_state.optitrack_angle.y - angle_y;
+
+    // TODO: Change this to better reflect height of camera.
+    float height_camera = drone_state.optitrack_pos.z;
+
+    float x_pos_from_drone = height_camera / tan(line_angle);
+    float y_pos_from_drone = x_pos_from_drone * tan(angle_x);
+
+    float R_x = cos(heading) - sin(heading);
+    float R_y = sin(heading) + cos(heading);
+
+    // TODO: Check that this operation is in correct order.
+    float x_grid = R_x * x_pos_from_drone;
+    float y_grid = R_y * y_pos_from_drone;
+
+    return { x_grid, y_grid };
 }
