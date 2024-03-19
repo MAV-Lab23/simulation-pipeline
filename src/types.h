@@ -2,10 +2,29 @@
 
 typedef unsigned char uchar;
 
+#ifdef IN_PAPARAZZI
+
+// TODO: Implement cv::Mat in paparazzi compatible code if needed.
+#include <opencv2/core/mat.hpp>
+typedef cv::Mat Image;
+
+#else
+
+#include <opencv2/core/mat.hpp>
+typedef cv::Mat Image;
+
+#endif
+
 typedef struct Vector2f {
 	float x;
 	float y;
 } Vector2f;
+
+typedef struct Vector3f {
+	float x;
+	float y;
+	float z;
+} Vector3f;
 
 typedef struct Vector2i {
 	int x;
@@ -18,29 +37,12 @@ typedef struct Color {
 	uchar b;
 } Color;
 
-typedef struct BoundingRect {
-	Vector2i min;
-	Vector2i max;
-} BoundingRect;
+typedef struct DroneState {
+	Vector3f optitrack_pos; /* meters */
+	Vector3f optitrack_angle; /* radians */
+} DroneState;
 
-typedef struct FOV {
-	Vector2i pos;
-	Vector2i right_pos;
-	Vector2i left_pos;
-} FOV;
-
-typedef struct Drone {
-	Vector2i pos;
-	float angle;
-	float r_angle;
-	float fov_half_angle;
-
-	uchar* fov_cells;
-	uchar* drone_cells;
-} Drone;
-
-typedef struct Simulation {
-	uchar* values;
-	uchar* stored_values;
-	Drone drone;
-} Simulation;
+typedef struct DroneData {
+	Image image;
+	DroneState state;
+} DroneData;
