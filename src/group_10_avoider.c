@@ -15,6 +15,7 @@ static uint8_t moveWaypointForward(uint8_t waypoint, float distanceMeters);
 static uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters);
 static uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i *new_coor);
 static uint8_t setNavHeading(float heading);
+static float findNewHeading();
 
 enum navigation_state_t {
   SAFE,
