@@ -50,7 +50,7 @@ static void obstacle_detection_cb(uint8_t __attribute__((unused)) sender_id, int
 void group_10_avoider_init(void)
 {
   new_heading = findNewHeading();
-  AbiBindMsgOBSTACLE_POINT_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, &obstacle_detection_ev, obstacle_detection_cb);
+  AbiBindMsgGROUP_10_OBSTACLE_POINT_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, &obstacle_detection_ev, obstacle_detection_cb);
 }
 
 /*
