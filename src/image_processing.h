@@ -337,7 +337,9 @@ double getCircleRadius(const cv::RotatedRect& rect) {
 
 double distanceToLine(cv::Point line_start, cv::Point line_end, cv::Point point)
 {
-	double normalLength = _hypot(line_end.x - line_start.x, line_end.y - line_start.y);
+	double dist_x = line_end.x - line_start.x;
+	double dist_y = line_end.y - line_start.y;
+	double normalLength = sqrt(dist_x * dist_x + dist_y * dist_y);
 	if (normalLength == 0.0) return 0;
 	double distance = (double)((point.x - line_start.x) * (line_end.y - line_start.y) - (point.y - line_start.y) * (line_end.x - line_start.x)) / normalLength;
 	return abs(distance);

@@ -105,6 +105,7 @@ void ClearGrid(uchar* out_grid) {
 
 #include <string>
 #include <fstream>
+#include <filesystem>
 #include <vector>
 #include <utility> // std::pair
 
