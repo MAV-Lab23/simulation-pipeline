@@ -12,7 +12,7 @@
 #endif
 
 #ifndef GROUP_10_OBSTACLE_DETECTION_ID
-#define GROUP_10_OBSTACLE_DETECTION_ID ABI_BROADCAST
+#define GROUP_10_OBSTACLE_DETECTION_ID 50
 #endif
 
 
@@ -28,8 +28,7 @@ struct image_t *obstacle_detector(struct image_t *img, uint8_t camera_id __attri
   int32_t x = 69;
   int32_t y = 70;
 
-  // TODO: Add OBSTACLE_POINT_DETECTION to paparazzi/conf/abi.xml
-  AbiSendMsgGROUP_10_OBSTACLE_POINT_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, x, y);
+  AbiSendMsgGROUP_10_OBSTACLE_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, x, y);
 
   return img;
 }
