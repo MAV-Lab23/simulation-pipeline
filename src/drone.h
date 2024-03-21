@@ -182,48 +182,134 @@ std::vector<DroneData> getDroneData(
     return drone_data;
 }
 
-#endif
+static cv::Mat getHomogenousTransform(const DroneState drone_state) {
+    // Conversion of Euler angles to rotation matrix
+    float cos_roll = cos(drone_state.optitrack_angle.x);
+    float sin_roll = sin(drone_state.optitrack_angle.x);
+    float cos_pitch = cos(drone_state.optitrack_angle.y);
+    float sin_pitch = sin(drone_state.optitrack_angle.y);
+    float cos_yaw = cos(drone_state.optitrack_angle.z);
+    float sin_yaw = sin(drone_state.optitrack_angle.z);
+
+    cv::Mat rotation_matrix = cv::Mat(4, 4, CV_32F);
+
+    rotation_matrix.at<float>(0, 0) = cos_yaw * cos_pitch;
+    rotation_matrix.at<float>(0, 1) = cos_yaw * sin_pitch * sin_roll - sin_yaw * cos_roll;
+    rotation_matrix.at<float>(0, 2) = cos_yaw * sin_pitch * cos_roll + sin_yaw * sin_roll;
+    rotation_matrix.at<float>(0, 3) = drone_state.optitrack_pos.x;
+
+    rotation_matrix.at<float>(1, 0) = sin_yaw * cos_pitch;
+    rotation_matrix.at<float>(1, 1) = sin_yaw * sin_pitch * sin_roll + cos_yaw * cos_roll;
+    rotation_matrix.at<float>(1, 2) = sin_yaw * sin_pitch * cos_roll - cos_yaw * sin_roll;
+    rotation_matrix.at<float>(1, 3) = drone_state.optitrack_pos.y;
+
+    rotation_matrix.at<float>(2, 0) = -sin_pitch;
+    rotation_matrix.at<float>(2, 1) = cos_pitch * sin_roll;
+    rotation_matrix.at<float>(2, 2) = cos_pitch * cos_roll;
+    rotation_matrix.at<float>(2, 3) = drone_state.optitrack_pos.z;
+
+    rotation_matrix.at<float>(3, 0) = 0;
+    rotation_matrix.at<float>(3, 1) = 0;
+    rotation_matrix.at<float>(3, 1) = 0;
+    rotation_matrix.at<float>(3, 1) = 1;
+ 
+    return rotation_matrix;
+}
+
+static Vector3f vectorDroneToOpti(const DroneState drone_state, const Vector3f drone_point):
+    cv::Mat drone_vector = cv::Mat(1, 4, CV_32F);
+
+    drone_vector.at<float>(0, 0) = drone_point.x;
+    drone_vector.at<float>(0, 1) = drone_point.y;
+    drone_vector.at<float>(0, 2) = drone_point.z;
+    drone_vector.at<float>(0, 3) = 0;
+
+    cv::Mat rotation_matrix = getHomogenousTransform(drone_state);
+    
+    cv::Mat result = rotation_matrix * drone_vector;
+
+    float first = result.at<float>(0, 0);
+    float second = result.at<float>(0, 1);
+    float third = result.at<float>(0, 2);
+
+    Vector3f output = { first, second, third };
+
+    return output;
 
 static Vector2f getObstacleGridPosition(
-    const Vector2i drone_cam_size,
-    const Vector2i point,
+    const Vector2i drone_cam_size_pixels,
+    const Vector2i point_cam_pos,
     float drone_fov_width,
     const DroneState drone_state) {
 
-    float aspect_ratio = drone_cam_size.y / drone_cam_size.x;
-    int center_x = drone_cam_size.x / 2;
-    int center_y = drone_cam_size.y / 2;
+    float ground_height = 0;
 
-    float fov_h = drone_fov_width * aspect_ratio;
+    float aspect_ratio = drone_cam_size_pixels.x / drone_cam_size_pixels.y;
 
-    int dist_x = point.x - center_x;
-    int dist_y = point.y - center_y;
+    assert(aspect_ratio > 0);
 
-    float frac_screen_x = (float)dist_x / (float)drone_cam_size.x;
-    float frac_screen_y = (float)dist_y / (float)drone_cam_size.y;
+    // TODO: Account for distortion effects.
 
-    float angle_y = frac_screen_y * fov_h;
-    float angle_x = frac_screen_x * drone_fov_width;
+    // Assuming image has no distortion.
+    float drone_fov_height = drone_fov_width / aspect_ratio;
 
-    // anti clockwise is positive
+    assert(drone_fov_height < drone_fov_width && "Drone fov height should not be more than fov width (for landscape images)");
 
-    float heading = drone_state.optitrack_angle.z;
+    float image_fov[2] = { drone_fov_width, drone_fov_height };
 
-    float line_angle = drone_state.optitrack_angle.y - angle_y;
+    // Convert values from 0 to cam_size -> 0 to 1.
+    float point_norm[2] = { normalizeValue(point_cam_pos.x, 0, drone_cam_size_pixels.x),
+                            normalizeValue(point_cam_pos.y, 0, drone_cam_size_pixels.y) };
 
-    // TODO: Change this to better reflect height of camera.
-    float height_camera = drone_state.optitrack_pos.z;
+    assert(point_norm[0] >= 0.0 && point_norm[1] >= 0.0);
+    assert(point_norm[0] <= 1.0 && point_norm[1] <= 1.0);
 
-    float x_pos_from_drone = height_camera / tan(line_angle);
-    float y_pos_from_drone = x_pos_from_drone * tan(angle_x);
+    // Convert values from 0 to 1 -> -1 to 1.
+    float point[2] = { (point_norm[0] * 2) - 1, (point_norm[1] * 2) - 1 };
 
-    float R_x = cos(heading) - sin(heading);
-    float R_y = sin(heading) + cos(heading);
+    assert(point[0] >= -1.0 && point[1] >= -1.0);
+    assert(point[0] <= 1.0 && point[1] <= 1.0);
 
-    // TODO: Check that this operation is in correct order.
-    float x_grid = R_x * x_pos_from_drone;
-    float y_grid = R_y * y_pos_from_drone;
+    float longitude = point[0] * image_fov[0] / 2.0;
+    float latitude = point[1] * image_fov[1] / 2.0;
 
-    Vector2f final_pos = { x_grid, y_grid };
-    return final_pos;
+    float sin_lat = sin(latitude);
+    float cos_lat = cos(latitude);
+    float sin_lon = sin(longitude);
+    float cos_lon = cos(longitude);
+
+    // Direction vector of the line
+    Vector3f direction_vector_drone = { cos_lat * cos_lon,
+                                        cos_lat * sin_lon,
+                                       -cos_lon * sin_lat };
+
+    Vector3f direction_vector_opti = vectorDroneToOpti(drone_state, direction_vector_drone);
+
+    // Plane equation coefficients (for a plane parallel to xy-plane)
+    float a = 0;
+    float b = 0;
+    float c = 1;
+    float d = ground_height;
+
+    float pos_dot = drone_state.optitrack_pos.x * a + drone_state.optitrack_pos.y * b + drone_state.optitrack_pos.z * c;
+    float dir_dot = direction_vector_opti.x * a + direction_vector_opti.y * b + direction_vector_opti.z * c;
+    
+    // Intersection parameter
+    float t = (-d - pos_dot) / dir_dot;
+
+    Vector2f translated_point = { 0, 0 };
+
+    // prevent points behind the drone
+    if (t >= 0) {
+
+        // Intersection point
+        float intersection_point_x = drone_state.optitrack_pos.x + t * direction_vector_opti.x;
+        float intersection_point_y = drone_state.optitrack_pos.y + t * direction_vector_opti.y;
+
+        translated_point = { intersection_point_x, intersection_point_y };
+    }
+
+    return translated_point;
 }
+
+#endif

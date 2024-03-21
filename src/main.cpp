@@ -41,18 +41,18 @@ void processImage(const DroneData& drone_data) {
     // Draw lines from center of screen to found obstacles.
     for (size_t i = 0; i < objectDistances.size(); i++)
     {
-        Vector2i point = { objectDistances[i].x, objectDistances[i].y };
+        Vector2i point_cam_pos = { objectDistances[i].x, objectDistances[i].y };
 
-        Vector2f grid_offset_pos = getObstacleGridPosition({ 520, 240 }, point, degToRad(DRONE_FOV_ANGLE), drone_state);
+        Vector2f point_optitrack_pos = getObstacleGridPosition({ 520, 240 }, point_cam_pos, degToRad(DRONE_FOV_ANGLE), drone_state);
 
-        Vector2f point_opti_pos = { normalizeValue(drone_state.optitrack_pos.x + grid_offset_pos.x, -ARENA_SIZE.x / 2, ARENA_SIZE.x / 2),
-                                    normalizeValue(drone_state.optitrack_pos.y + grid_offset_pos.y, -ARENA_SIZE.y / 2, ARENA_SIZE.y / 2) };
+        Vector2f point_norm_pos = { normalizeValue(point_optitrack_pos.x, -ARENA_SIZE.x / 2, ARENA_SIZE.x / 2),
+                                    normalizeValue(point_optitrack_pos.y, -ARENA_SIZE.y / 2, ARENA_SIZE.y / 2) };
 
-        Vector2i point_pos_grid = { (int)(point_opti_pos.x * GRID_SIZE.x), (int)(point_opti_pos.y * GRID_SIZE.y) };
+        Vector2i point_grid_pos = { (int)(point_norm_pos.x * GRID_SIZE.x), (int)(point_norm_pos.y * GRID_SIZE.y) };
 
-        Vector2i point_pos = { (int)clamp(point_pos_grid.x, 0, GRID_SIZE.x - 1), (int)clamp(point_pos_grid.y, 0, GRID_SIZE.y - 1) };
+        Vector2i point_grid_pos_clamped = { (int)clamp(point_grid_pos.x, 0, GRID_SIZE.x - 1), (int)clamp(point_grid_pos.y, 0, GRID_SIZE.y - 1) };
 
-        cv::circle(grid, cv::Point(point_pos.x, point_pos.y), 2, cv::Scalar(0), -1);
+        cv::circle(grid, cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y), 2, cv::Scalar(0), -1);
         cv::line(img, { center.x, size[1] }, objectDistances[i], cv::Scalar(0));
     }
 
