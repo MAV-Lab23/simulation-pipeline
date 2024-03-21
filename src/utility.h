@@ -2,8 +2,8 @@
 
 #include <stdio.h>
 
-#include <constants.h>
-#include <types.h>
+#include "constants.h"
+#include "types.h"
 
 #define M_PI 3.14159265358979323846
 
@@ -20,7 +20,7 @@
 #endif
 
 // Normalize the value to the 0-1 range
-float normalizeValue(float value, float min_value, float max_value) {
+static float normalizeValue(float value, float min_value, float max_value) {
 	if (min_value == max_value) {
 		return 0.5;
 	}
@@ -28,24 +28,16 @@ float normalizeValue(float value, float min_value, float max_value) {
 	return (value - min_value) / (max_value - min_value);
 }
 
-cv::Mat createGrid(uchar* out_grid, int width, int height) {
-	// Allocate memory for the grid data (1 channel, unsigned char)
-	out_grid = (uchar*)malloc(width * height * sizeof(uchar));
-
-	cv::Mat cv_grid(height, width, CV_8UC1, out_grid);
-	return cv_grid;
-}
-
-void destroyGrid(uchar* in_grid) {
+static void destroyGrid(uchar* in_grid) {
 	// Free the allocated memory
 	free(in_grid);
 }
 
-float degToRad(float degrees) {
+static float degToRad(float degrees) {
 	return 2.0f * M_PI / 180.0f * degrees;
 }
 
-float radToDeg(float radians) {
+static float radToDeg(float radians) {
 	return 180.0f / (2.0f * M_PI) * radians;
 }
 
@@ -58,20 +50,21 @@ float floor(float value) {
 
 // I know I could use a template here but I don't wanna add every possible condition for T.
 
-float clamp(float d, float min, float max) {
+static float clamp(float d, float min, float max) {
 	const float t = d < min ? min : d;
 	return t > max ? max : t;
 }
 
-int flatten(const Vector2i& coordinate) {
+static int flatten(const Vector2i coordinate) {
 	return GRID_SIZE.x * coordinate.y + coordinate.x;
 }
 
-Vector2i worldToGrid(const Vector2i& pos) {
-	return Vector2i{
+static Vector2i worldToGrid(const Vector2i pos) {
+	Vector2i transformed_pos = {
 		(int)floor(clamp(pos.x, 0, GRID_DIMENSIONS.x) / TILE_SIZE),
 		(int)floor(clamp(pos.y, 0, GRID_DIMENSIONS.y) / TILE_SIZE)
 	};
+	return transformed_pos;
 }
 
 /*
@@ -108,6 +101,14 @@ void ClearGrid(uchar* out_grid) {
 #include <filesystem>
 #include <vector>
 #include <utility> // std::pair
+
+cv::Mat createGrid(uchar* out_grid, int width, int height) {
+	// Allocate memory for the grid data (1 channel, unsigned char)
+	out_grid = (uchar*)malloc(width * height * sizeof(uchar));
+
+	cv::Mat cv_grid(height, width, CV_8UC1, out_grid);
+	return cv_grid;
+}
 
 // From: https://www.gormanalysis.com/blog/reading-and-writing-csv-files-with-cpp/
 void writeCSV(const std::filesystem::path& filename, const std::vector<std::pair<std::string, std::vector<long double>>> dataset) {

@@ -8,9 +8,9 @@
 #include <opencv2/core/mat.hpp>
 #include <opencv2/opencv.hpp>
 
-#include <types.h>
-#include <constants.h>
-#include <utility.h>
+#include "types.h"
+#include "constants.h"
+#include "utility.h"
 
 using Contour = std::vector<cv::Point>;
 
@@ -31,7 +31,7 @@ std::vector<cv::Point> clampContourY(const std::vector<cv::Point>& contour, int 
 	return clamped_contour;
 }
 
-cv::Mat extractLargestContour(const cv::Mat & image, std::vector<std::vector<cv::Point>>& floor_cns, std::vector<std::vector<cv::Point>>& above_cns) {
+cv::Mat extractLargestContour(const cv::Mat& image, std::vector<std::vector<cv::Point>>& floor_cns, std::vector<std::vector<cv::Point>>& above_cns) {
 	// Preprocessing (optional)
 	// You might need additional preprocessing steps depending on your image characteristics
 

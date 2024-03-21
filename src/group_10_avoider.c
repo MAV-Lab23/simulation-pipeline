@@ -29,8 +29,8 @@ enum navigation_state_t nav_state = SEARCH_FOR_SAFE_HEADING;
 float maxDistance = 2.25; // max waypoint displacement [m]
 float new_heading = 0.f;
 
-int32_t obstacle_x = -10000;
-int32_t obstacle_y = -10000;
+float obstacle_x = -10000;
+float obstacle_y = -10000;
 
 int32_t obstacle_free_confidence = 0;
 
@@ -40,7 +40,7 @@ int32_t obstacle_free_confidence = 0;
 
 static abi_event obstacle_detection_ev;
 
-static void obstacle_detection_cb(uint8_t __attribute__((unused)) sender_id, int32_t x, int32_t y)
+static void obstacle_detection_cb(uint8_t __attribute__((unused)) sender_id, float x, float y)
 {
   obstacle_x = x;
   obstacle_y = y;
@@ -64,7 +64,7 @@ void group_10_avoider_periodic(void)
     return;
   }
 
-  PRINT("obstacle_x: %d, obstacle_y: %d \n", obstacle_x, obstacle_y);
+  PRINT("Retrieved position from ABI: (x: %.3f, y: %.3f) \n", obstacle_x, obstacle_y);
 
   float moveDistance = maxDistance;
 
@@ -139,7 +139,7 @@ uint8_t setNavHeading(float heading)
   // set heading, declared in firmwares/rotorcraft/navigation.h
   nav.heading = new_heading;
 
-  PRINT("Setting nav heading to %f\n", DegOfRad(new_heading));
+  //PRINT("Setting nav heading to %f\n", DegOfRad(new_heading));
   return false;
 }
 
@@ -165,9 +165,7 @@ uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters)
   new_coor->x = stateGetPositionEnu_i()->x + POS_BFP_OF_REAL(sinf(heading) * (distanceMeters));
   new_coor->y = stateGetPositionEnu_i()->y + POS_BFP_OF_REAL(cosf(heading) * (distanceMeters));
 
-  PRINT("Calculated %f m forward position. x: %f  y: %f based on pos(%f, %f) and heading(%f)\n", distanceMeters,	
-        POS_FLOAT_OF_BFP(new_coor->x), POS_FLOAT_OF_BFP(new_coor->y),
-        stateGetPositionEnu_f()->x, stateGetPositionEnu_f()->y, DegOfRad(heading));
+  //PRINT("Calculated %f m forward position. x: %f  y: %f based on pos(%f, %f) and heading(%f)\n", distanceMeters, POS_FLOAT_OF_BFP(new_coor->x), POS_FLOAT_OF_BFP(new_coor->y), stateGetPositionEnu_f()->x, stateGetPositionEnu_f()->y, DegOfRad(heading));
 
   return false;
 }
@@ -177,7 +175,7 @@ uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters)
  */
 uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i *new_coor)
 {
-  PRINT("Moving waypoint %d to x:%f y:%f\n", waypoint, POS_FLOAT_OF_BFP(new_coor->x), POS_FLOAT_OF_BFP(new_coor->y));
+  //PRINT("Moving waypoint %d to x:%f y:%f\n", waypoint, POS_FLOAT_OF_BFP(new_coor->x), POS_FLOAT_OF_BFP(new_coor->y));
 
   waypoint_move_xy_i(waypoint, new_coor->x, new_coor->y);
 

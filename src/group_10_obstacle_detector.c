@@ -5,6 +5,8 @@
 
 #include <stdio.h>
 
+#include "drone.h"
+
 #define PRINT(string,...) fprintf(stderr, "[obstacle_detector->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
 
 #ifndef GROUP_10_OBSTACLE_DETECTOR_FPS
@@ -23,11 +25,15 @@ struct image_t *obstacle_detector(struct image_t *img, uint8_t camera_id __attri
   /*
     TODO: PROCESS img with OpenCV
   */
+  PRINT("Got image from drone (width: %d, height: %d) \n", img->w, img->h);
+  
+  DroneState drone_state = getDroneState();
 
-  // TODO: Determine obstacle coordinates.
-  int32_t x = 69;
-  int32_t y = 70;
+  // TODO: Determine obstacle coordinates and set them here.
+  float x = drone_state.optitrack_pos.x;
+  float y = drone_state.optitrack_pos.y;
 
+  // Passing obstacle coordinates to other thread via Abi.
   AbiSendMsgGROUP_10_OBSTACLE_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, x, y);
 
   return img;

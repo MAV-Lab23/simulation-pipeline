@@ -5,8 +5,8 @@ typedef unsigned char uchar;
 #ifdef IN_PAPARAZZI
 
 // TODO: Implement cv::Mat in paparazzi compatible code if needed.
-#include <opencv2/core/mat.hpp>
-typedef cv::Mat Image;
+//#include <opencv2/core/mat.hpp>
+typedef uchar* Image;
 
 #else
 

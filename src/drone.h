@@ -1,17 +1,18 @@
 #pragma once
 
-#include <types.h>
-#include <utility.h>
+#include "types.h"
+#include "utility.h"
 
 #ifdef IN_PAPARAZZI
 
 #include "state.h"
 
 // TODO: Implement paparazzi version of GetDroneState
-DroneState getDroneState() {
+static DroneState getDroneState() {
     Vector3f optitrack_pos = { stateGetPositionEnu_f()->x, stateGetPositionEnu_f()->y, stateGetPositionEnu_f()->z };
     Vector3f optitrack_angle = { stateGetNedToBodyEulers_f()->phi, stateGetNedToBodyEulers_f()->theta, stateGetNedToBodyEulers_f()->psi };
-    return { optitrack_pos, optitrack_angle };
+    DroneState state = { optitrack_pos, optitrack_angle };
+    return state;
 }
 
 #else
@@ -183,11 +184,11 @@ std::vector<DroneData> getDroneData(
 
 #endif
 
-Vector2f getObstacleGridPosition(
-    const Vector2i& drone_cam_size,
-    const Vector2i& point,
+static Vector2f getObstacleGridPosition(
+    const Vector2i drone_cam_size,
+    const Vector2i point,
     float drone_fov_width,
-    const DroneState& drone_state) {
+    const DroneState drone_state) {
 
     float aspect_ratio = drone_cam_size.y / drone_cam_size.x;
     int center_x = drone_cam_size.x / 2;
@@ -223,5 +224,6 @@ Vector2f getObstacleGridPosition(
     float x_grid = R_x * x_pos_from_drone;
     float y_grid = R_y * y_pos_from_drone;
 
-    return { x_grid, y_grid };
+    Vector2f final_pos = { x_grid, y_grid };
+    return final_pos;
 }

@@ -1,7 +1,7 @@
-#include <draw.h>
-#include <drone.h>
-#include <utility.h>
-#include <image_processing.h>
+#include "draw.h"
+#include "drone.h"
+#include "utility.h"
+#include "image_processing.h"
 
 void processImage(const DroneData& drone_data) {
     uchar* grid_pointer = NULL;
