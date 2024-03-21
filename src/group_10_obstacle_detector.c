@@ -5,6 +5,11 @@
 
 #include <stdio.h>
 
+#ifdef GROUP_10_OPENCV
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#endif
+
 #include "drone.h"
 
 #define PRINT(string,...) fprintf(stderr, "[obstacle_detector->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
@@ -25,7 +30,13 @@ struct image_t *obstacle_detector(struct image_t *img, uint8_t camera_id __attri
   /*
     TODO: PROCESS img with OpenCV
   */
-  PRINT("Got image from drone (width: %d, height: %d) \n", img->w, img->h);
+  //PRINT("Got image from drone (width: %d, height: %d) \n", img->w, img->h);
+
+#ifdef GROUP_10_OPENCV
+  cv::Mat mat;
+  
+  PRINT("Made matrix with size: %d \n", mat.size);
+#endif
   
   DroneState drone_state = getDroneState();
 
