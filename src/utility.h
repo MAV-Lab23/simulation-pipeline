@@ -28,17 +28,12 @@ static float normalizeValue(float value, float min_value, float max_value) {
 	return (value - min_value) / (max_value - min_value);
 }
 
-static void destroyGrid(uchar* in_grid) {
-	// Free the allocated memory
-	free(in_grid);
-}
-
 static float degToRad(float degrees) {
-	return 2.0f * M_PI / 180.0f * degrees;
+	return M_PI / 180.0f * degrees;
 }
 
 static float radToDeg(float radians) {
-	return 180.0f / (2.0f * M_PI) * radians;
+	return 180.0f / M_PI * radians;
 }
 
 /*
@@ -101,14 +96,6 @@ void ClearGrid(uchar* out_grid) {
 #include <filesystem>
 #include <vector>
 #include <utility> // std::pair
-
-cv::Mat createGrid(uchar* out_grid, int width, int height) {
-	// Allocate memory for the grid data (1 channel, unsigned char)
-	out_grid = (uchar*)malloc(width * height * sizeof(uchar));
-
-	cv::Mat cv_grid(height, width, CV_8UC1, out_grid);
-	return cv_grid;
-}
 
 // From: https://www.gormanalysis.com/blog/reading-and-writing-csv-files-with-cpp/
 void writeCSV(const std::filesystem::path& filename, const std::vector<std::pair<std::string, std::vector<long double>>> dataset) {
