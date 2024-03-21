@@ -384,6 +384,7 @@ std::vector<cv::Point> processImageForObjects(const cv::Mat& inputImage) {
 
 	cv::imshow("Intermediate1", processedMask);
 
+	std::vector<cv::Point> non_hull_points;
 
 	if (floor_cns.size() > 0) {
 		cv::Mat drawing = cv::Mat::zeros(contour_edges.size(), CV_8UC1);
@@ -416,7 +417,6 @@ std::vector<cv::Point> processImageForObjects(const cv::Mat& inputImage) {
 		int distance_threshold = 20;
 		int dist_thresh2 = distance_threshold * distance_threshold;
 
-		std::vector<cv::Point> non_hull_points;
 
 		cv::Mat hull_outliers = inputImage;//cv::Mat::zeros(isolatedFloor.size(), CV_8UC3);
 
@@ -461,5 +461,6 @@ std::vector<cv::Point> processImageForObjects(const cv::Mat& inputImage) {
 	std::vector<cv::Point> objectPositions;
 	detectObjectPositions(smoothedBorder, objectPositions);
 
-	return objectPositions;
+	//return objectPositions;
+	return non_hull_points;
 }
