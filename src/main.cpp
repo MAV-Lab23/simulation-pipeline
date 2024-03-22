@@ -3,6 +3,7 @@
 #include "utility.h"
 #include "constants.h"
 #include "image_processing.h"
+#include "rms.h"
 
 void processImage(const DroneData& drone_data) {
     // Draw drone position on grid.
@@ -64,6 +65,9 @@ void processImage(const DroneData& drone_data) {
     // Draw green carpet
     cv::rectangle(grid, cv::Point(top_left_x, top_left_y), cv::Point(bottom_right_x, bottom_right_y), cv::Scalar(0, 250, 0), -1);
 
+    Vector2i* obstacle_list = NULL;
+    int length = 0;
+    //Vector2f obstacle_list =  
     // Draw lines from center of screen to found obstacles.
     for (size_t i = 0; i < objectDistances.size(); i++)
     {
@@ -98,6 +102,11 @@ void processImage(const DroneData& drone_data) {
 
         Vector2i point_grid_pos_clamped = { (int)clamp(point_grid_pos.x, 0, GRID_SIZE.x - 1), (int)clamp(point_grid_pos.y, 0, GRID_SIZE.y - 1) };
 
+        obstacle_list = appendElement(obstacle_list, &length, point_grid_pos_clamped);
+        //printf("%f", obstacle_list[0]);
+
+        
+
         cv::circle(grid, cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y), 2, cv::Scalar(255, 0, 0), -1);
         cv::line(img, cv::Point(drone_pos.x, drone_pos.y), cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y), cv::Scalar(0));
 
@@ -119,6 +128,44 @@ void processImage(const DroneData& drone_data) {
     {
         return;
     }
+
+    int start_x = drone_pos.x;
+    int start_y = drone_pos.y;
+
+    int lengt = 360/15;
+    int heading[length];
+    heading[0] = 0;
+
+    double Root_mean_square[length];
+
+    for (int item = 1; item < lengt; item++) {
+        heading[item] = heading[item - 1] + 15;
+    }
+
+    obstacle_list;
+    int num_obstacles = sizeof(obstacle_list)/sizeof(obstacle_list[0]);
+    
+    for (int i = 0; i < length; i++) {
+        Root_mean_square[i] = CalculateRMS(start_x, start_y, heading[i], num_obstacles, obstacle_list, 0.5);
+    }
+    
+    double smallest = 80;
+    int index = -1;
+    for (int i = 0; i < length; i++) {
+        if (Root_mean_square[i] != 0 && Root_mean_square[i] < smallest) {
+            smallest = Root_mean_square[i];
+            index = i;
+        }
+        else {continue;
+        }
+    }
+
+    int xmax = GRID_SIZE.x;
+    int ymax = GRID_SIZE.y;
+    struct Coordinate destination = calculateWaypoint(start_x, start_y, heading[index], xmax, ymax);
+    printf("Waypoint coordinates: (%f, %f)\n", destination.coordinate_x, destination.coordinate_y);
+
+
 }
 
 int main() {
@@ -135,6 +182,7 @@ int main() {
     for (auto& data : drone_data) {
         processImage(data);
     }
+
     
     cv::waitKey(0);
 
