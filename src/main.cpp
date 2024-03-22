@@ -29,27 +29,7 @@ void processImage(const DroneData& drone_data) {
     Image img;
     drone_data.image.copyTo(img);
 
-    std::vector<cv::Point> objectDistances2 = processImageForObjects(img);
-    
-    std::vector<cv::Point> objectDistances;
-    cv::Point p1 = { 156, 240 };
-    cv::Point p2 = { 364, 240 };
-    cv::Point p3 = { 0, 240 };
-    cv::Point p4 = { 520, 240 };
-    cv::Point p5 = { 156, 100 };
-    cv::Point p6 = { 364, 100 };
-    cv::Point p7 = { 0, 100 };
-    cv::Point p8 = { 520, 100 };
-    objectDistances.push_back(p1);
-    objectDistances.push_back(p2);
-    objectDistances.push_back(p3);
-    objectDistances.push_back(p4);
-    objectDistances.push_back(p5);
-    objectDistances.push_back(p6);
-    objectDistances.push_back(p7);
-    objectDistances.push_back(p8);
-    
-        
+    std::vector<cv::Point> objectDistances = processImageForObjects(img);    
         
     cv::MatSize size = img.size;
     // OpenCV image size gives [h, w]
