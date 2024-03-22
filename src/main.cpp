@@ -19,8 +19,8 @@ void processImage(const DroneData& drone_data) {
 
     int dir_magnitude = 30;
 
-    int x_dir = dir_magnitude * cos(drone_state.optitrack_angle.x);
-    int y_dir = dir_magnitude * sin(drone_state.optitrack_angle.x);
+    int x_dir = dir_magnitude * cos(drone_state.optitrack_angle.z);
+    int y_dir = dir_magnitude * sin(drone_state.optitrack_angle.z);
 
     Vector2i start_pos = Vector2i{ (int)clamp(drone_pos.x, 0, GRID_SIZE.x), (int)clamp(drone_pos.y, 0, GRID_SIZE.y) };
     Vector2i end_pos = Vector2i{ (int)clamp(drone_pos.x + x_dir, 0, GRID_SIZE.x), (int)clamp(drone_pos.y + y_dir, 0, GRID_SIZE.y) };
@@ -28,7 +28,27 @@ void processImage(const DroneData& drone_data) {
     Image img;
     drone_data.image.copyTo(img);
 
-    std::vector<cv::Point> objectDistances = processImageForObjects(img);
+    std::vector<cv::Point> objectDistances2 = processImageForObjects(img);
+    
+    std::vector<cv::Point> objectDistances;
+    cv::Point p1 = { 156, 240 };
+    cv::Point p2 = { 364, 240 };
+    cv::Point p3 = { 0, 240 };
+    cv::Point p4 = { 520, 240 };
+    cv::Point p5 = { 156, 100 };
+    cv::Point p6 = { 364, 100 };
+    cv::Point p7 = { 0, 100 };
+    cv::Point p8 = { 520, 100 };
+    objectDistances.push_back(p1);
+    objectDistances.push_back(p2);
+    objectDistances.push_back(p3);
+    objectDistances.push_back(p4);
+    objectDistances.push_back(p5);
+    objectDistances.push_back(p6);
+    objectDistances.push_back(p7);
+    objectDistances.push_back(p8);
+    
+        
         
     cv::MatSize size = img.size;
     // OpenCV image size gives [h, w]
@@ -51,7 +71,7 @@ void processImage(const DroneData& drone_data) {
         
 
         DroneState modified_drone_state = drone_state;
-
+        
         float CAMERA_TILT = degToRad(20.0);
         modified_drone_state.optitrack_angle.y -= CAMERA_TILT;
 
@@ -66,7 +86,7 @@ void processImage(const DroneData& drone_data) {
         */
 
         Vector2f point_optitrack_pos = getObstacleGridPosition(grid, { 520, 240 }, point_cam_pos, degToRad(DRONE_FOV_ANGLE), modified_drone_state);
-
+        
         //std::cout << "yaw: " << radToDeg(modified_drone_state.optitrack_angle.x) << ", pitch: " << radToDeg(modified_drone_state.optitrack_angle.y) << ", roll: " << radToDeg(modified_drone_state.optitrack_angle.z) << std::endl;
 
         //std::cout << "x: " << point_optitrack_pos.x << ", y: " << point_optitrack_pos.y << std::endl;
@@ -93,7 +113,7 @@ void processImage(const DroneData& drone_data) {
     cv::imshow("Grid", grid);
 
     // Pause before going to next frame.
-    //cv::waitKey(0);
+    cv::waitKey(0);
 
     if (cv::waitKey(30) == 27) // Wait for 'esc' key press to exit
     {
@@ -106,10 +126,10 @@ int main() {
     initDrawingWindows();
 
     // Directory path to drone images relative to src directory
-    const char* drone_images_directory = "../images/run1/";
+    const char* drone_images_directory = "../images/run2/";
     const char* drone_data_directory = "../data/";
     const char* cache_data_directory = "../cache/";
-    const char* drone_data_file = "run1.csv";
+    const char* drone_data_file = "run2.csv";
 
     std::vector<DroneData> drone_data = getDroneData(drone_images_directory, cache_data_directory, drone_data_directory, drone_data_file);
     for (auto& data : drone_data) {
