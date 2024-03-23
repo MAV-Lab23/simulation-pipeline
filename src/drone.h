@@ -130,8 +130,8 @@ std::vector<DroneData> getDroneData(
             DroneState state;
             state.optitrack_pos = { std::stof(row[1]), std::stof(row[2]), std::stof(row[3]) };
             // TODO: Check that these are correct angles.
-            //                                   yaw                pitch              roll
-            state.optitrack_angle = { std::stof(row[9]), std::stof(row[8]), std::stof(row[7]) };
+            //                                   roll                pitch              yaw
+            state.optitrack_angle = { std::stof(row[7]), std::stof(row[8]), std::stof(row[9]) };
 
             if (image_index >= sorted_paths.size()) break;
 
@@ -160,9 +160,9 @@ std::vector<DroneData> getDroneData(
                 x.push_back(chosen_state.optitrack_pos.x);
                 y.push_back(chosen_state.optitrack_pos.y);
                 z.push_back(chosen_state.optitrack_pos.z);
-                yaw.push_back(chosen_state.optitrack_angle.x);
+                roll.push_back(chosen_state.optitrack_angle.x);
                 pitch.push_back(chosen_state.optitrack_angle.y);
-                roll.push_back(chosen_state.optitrack_angle.z);
+                yaw.push_back(chosen_state.optitrack_angle.z);
 
                 if (image_index % 30 == 0) {
                     std::cout << "Parsed " << (int)((double)image_index / (double)sorted_paths.size() * 100.0) << "% of images..." << std::endl;
@@ -178,7 +178,7 @@ std::vector<DroneData> getDroneData(
 
         assert(drone_data.size() <= sorted_paths.size());
 
-        writeCSV(cache_file, { { "index", indexes }, { "x", x }, { "y", y }, { "z", z }, { "yaw", yaw }, { "pitch", pitch }, { "roll", roll } });
+        writeCSV(cache_file, { { "index", indexes }, { "x", x }, { "y", y }, { "z", z }, { "roll", roll }, { "pitch", pitch }, { "yaw", yaw } });
 
         std::cout << "Created cache file at: " << cache_file << std::endl;
     }
@@ -230,7 +230,7 @@ static cv::Mat getHomogenousTransform(const DroneState drone_state) {
     rotation_matrix.at<float>(3, 1) = 0;
     rotation_matrix.at<float>(3, 2) = 0;
     rotation_matrix.at<float>(3, 3) = 1;
- 
+
     return rotation_matrix;
 }
 
@@ -294,7 +294,7 @@ static Vector2f getObstacleGridPosition(
     assert(point[0] <= 1.0 && point[1] <= 1.0);
 
     float longitude = point[0] * image_fov[0] / 2.0;
-    float latitude = point[1] * image_fov[1] / 2.0;
+    float latitude = -point[1] * image_fov[1] / 2.0;
 
     float sin_lat = sin(latitude);
     float cos_lat = cos(latitude);

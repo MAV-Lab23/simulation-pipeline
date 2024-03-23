@@ -6,8 +6,7 @@
 #include <stdio.h>
 
 #ifdef GROUP_10_OPENCV
-#include <opencv2/core/core.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
+#include "opencv_wrapper.h"
 #endif
 
 #include "drone.h"
@@ -33,9 +32,11 @@ struct image_t *obstacle_detector(struct image_t *img, uint8_t camera_id __attri
   //PRINT("Got image from drone (width: %d, height: %d) \n", img->w, img->h);
 
 #ifdef GROUP_10_OPENCV
-  cv::Mat mat;
-  
-  PRINT("Made matrix with size: %d \n", mat.size);
+  if (img->type == IMAGE_YUV422) {
+    // Call OpenCV (C++ from paparazzi C function)
+    opencv_wrapper((char *) img->buf, img->w, img->h);
+    //PRINT("Ran opencv_wrapper");
+  }
 #endif
   
   DroneState drone_state = getDroneState();
