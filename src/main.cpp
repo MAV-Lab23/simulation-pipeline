@@ -5,6 +5,48 @@
 #include "image_processing.h"
 #include "path_planning.h"
 
+std::vector<cv::Point> getObjectGridPoints(std::vector<cv::Point>& undistortedObjectPointsInt, DroneState drone_state, Vector2i& drone_pos, cv::Mat& grid) {
+    
+    std::vector<cv::Point> objectGridPoints;
+    for (size_t i = 0; i < undistortedObjectPointsInt.size(); i++)
+    {
+        Vector2i point_cam_pos = { undistortedObjectPointsInt[i].x, undistortedObjectPointsInt[i].y };
+
+
+        DroneState modified_drone_state = drone_state;
+
+        float CAMERA_TILT = degToRad(0.0);
+        modified_drone_state.optitrack_angle.y -= CAMERA_TILT;
+
+        /*
+        modified_drone_state.optitrack_pos.x = 0;
+        modified_drone_state.optitrack_pos.y = 0;
+        modified_drone_state.optitrack_pos.z = -1;
+        modified_drone_state.optitrack_angle.y = 0;
+        modified_drone_state.optitrack_angle.x = -0.785398163;
+        modified_drone_state.optitrack_angle.z = 0;
+        point_cam_pos = { 520 / 2, 240 / 2 };
+        */
+
+        Vector2f point_optitrack_pos = getObstacleGridPosition(grid, { 520, 240 }, point_cam_pos, degToRad(DRONE_FOV_ANGLE), modified_drone_state);
+
+        //std::cout << "yaw: " << radToDeg(modified_drone_state.optitrack_angle.x) << ", pitch: " << radToDeg(modified_drone_state.optitrack_angle.y) << ", roll: " << radToDeg(modified_drone_state.optitrack_angle.z) << std::endl;
+
+        //std::cout << "x: " << point_optitrack_pos.x << ", y: " << point_optitrack_pos.y << std::endl;
+
+        Vector2f point_norm_pos = { normalizeValue(point_optitrack_pos.x, -ARENA_SIZE.x / 2, ARENA_SIZE.x / 2),
+                                    normalizeValue(point_optitrack_pos.y, -ARENA_SIZE.y / 2, ARENA_SIZE.y / 2) };
+
+        Vector2i point_grid_pos = { (int)(point_norm_pos.x * GRID_SIZE.x), (int)(point_norm_pos.y * GRID_SIZE.y) };
+
+        Vector2i point_grid_pos_clamped = { (int)clamp(point_grid_pos.x, 0, GRID_SIZE.x - 1), (int)clamp(point_grid_pos.y, 0, GRID_SIZE.y - 1) };
+
+        cv::Point obstacle_point = cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y);
+        objectGridPoints.push_back(obstacle_point);
+    }
+    return objectGridPoints;
+}
+
 void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
     // Draw drone position on grid.
     DroneState drone_state = drone_data.state;
@@ -95,51 +137,12 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
     // Draw green carpet
     cv::rectangle(grid, cv::Point(top_left_x, top_left_y), cv::Point(bottom_right_x, bottom_right_y), cv::Scalar(0, 250, 0), -1);
 
-    Vector2i* obstacle_list = NULL;
-    int length = 0;
-    //Vector2f obstacle_list =  
+    std::vector<cv::Point> objectGridPoints = getObjectGridPoints(undistortedObjectPointsInt, drone_state, drone_pos, grid);
     // Draw lines from center of screen to found obstacles.
-    for (size_t i = 0; i < undistortedObjectPointsInt.size(); i++)
+    for (size_t i = 0; i < objectGridPoints.size(); i++)
     {
-        Vector2i point_cam_pos = { undistortedObjectPointsInt[i].x, undistortedObjectPointsInt[i].y };
-        
-
-        DroneState modified_drone_state = drone_state;
-        
-        float CAMERA_TILT = degToRad(0.0);
-        modified_drone_state.optitrack_angle.y -= CAMERA_TILT;
-
-        /*
-        modified_drone_state.optitrack_pos.x = 0;
-        modified_drone_state.optitrack_pos.y = 0;
-        modified_drone_state.optitrack_pos.z = -1;
-        modified_drone_state.optitrack_angle.y = 0;
-        modified_drone_state.optitrack_angle.x = -0.785398163;
-        modified_drone_state.optitrack_angle.z = 0;
-        point_cam_pos = { 520 / 2, 240 / 2 };
-        */
-
-        Vector2f point_optitrack_pos = getObstacleGridPosition(grid, { 520, 240 }, point_cam_pos, degToRad(DRONE_FOV_ANGLE), modified_drone_state);
-        
-        //std::cout << "yaw: " << radToDeg(modified_drone_state.optitrack_angle.x) << ", pitch: " << radToDeg(modified_drone_state.optitrack_angle.y) << ", roll: " << radToDeg(modified_drone_state.optitrack_angle.z) << std::endl;
-
-        //std::cout << "x: " << point_optitrack_pos.x << ", y: " << point_optitrack_pos.y << std::endl;
-
-        Vector2f point_norm_pos = { normalizeValue(point_optitrack_pos.x, -ARENA_SIZE.x / 2, ARENA_SIZE.x / 2),
-                                    normalizeValue(point_optitrack_pos.y, -ARENA_SIZE.y / 2, ARENA_SIZE.y / 2) };
-
-        Vector2i point_grid_pos = { (int)(point_norm_pos.x * GRID_SIZE.x), (int)(point_norm_pos.y * GRID_SIZE.y) };
-
-        Vector2i point_grid_pos_clamped = { (int)clamp(point_grid_pos.x, 0, GRID_SIZE.x - 1), (int)clamp(point_grid_pos.y, 0, GRID_SIZE.y - 1) };
-
-        obstacle_list = append_Vector_Element(obstacle_list, &length, point_grid_pos_clamped);
-        //printf("%f", obstacle_list[0]);
-
-        cv::Point obstacle_point = cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y);
-
-        cv::circle(grid, cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y), 2, cv::Scalar(255, 0, 0), -1);
-        cv::line(img, cv::Point(drone_pos.x, drone_pos.y), cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y), cv::Scalar(0));
-
+        cv::circle(grid, objectGridPoints[i], 2, cv::Scalar(255, 0, 0), -1);
+        cv::line(img, cv::Point(drone_pos.x, drone_pos.y), objectGridPoints[i], cv::Scalar(0));
         cv::line(img, { center.x, center.y }, undistortedObjectPointsInt[i], cv::Scalar(0));
     }
 
@@ -162,31 +165,50 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
     }
 
 
-    int start_x = drone_pos.x;
-    int start_y = drone_pos.y;
+    
+}
 
-    length = 360/15;
-    int heading[length];
+void droneNav(DroneState drone_state, Vector2i drone_grid_pos, cv::Mat grid) {
+    int start_x = drone_grid_pos.x;
+    int start_y = drone_grid_pos.y;
+
+    Vector2i* obstacle_list = NULL;
+    int length = 0;
+    //Vector2f obstacle_list =  
+
+    length = 360 / 15;
+    int heading[360 / 15];
     heading[0] = 0;
 
-    double Root_mean_square[length];
+    obstacle_list = append_Vector_Element(obstacle_list, &length, point_grid_pos_clamped);
+    //printf("%f", obstacle_list[0]);
+
+    double Root_mean_square[360 / 15];
 
     for (int item = 1; item < length; item++) {
         heading[item] = heading[item - 1] + 15;
     }
 
     obstacle_list;
-    int num_obstacles = sizeof(obstacle_list)/sizeof(obstacle_list[0]);
-    int n = 0;    
-    for (int i = 0; i < length; i++) {
-        Root_mean_square[i] = CalculateRMS(start_x, start_y, heading[i], num_obstacles, obstacle_list, 0.5);
-        if ( Root_mean_square[i] == 0) {
-            n++;
+    int num_obstacles = sizeof(obstacle_list) / sizeof(obstacle_list[0]);
+    int n = 0;
+    if (num_obstacles != 0) {
+        for (int i = 0; i < length; i++) {
+            Root_mean_square[i] = CalculateRMS(start_x, start_y, heading[i], num_obstacles, obstacle_list, 0.5);
+            if (Root_mean_square[i] == 0) {
+                n++;
+            }
         }
     }
+    else {
+        // No obstacles found on the grid
+        int xmax = GRID_SIZE.x;
+        int ymax = GRID_SIZE.y;
+        struct Coordinate destination = calculateWaypoint(start_x, start_y, heading[-1], xmax, ymax);
+        printf("Waypoint coordinates: (%f, %f)\n", destination.coordinate_x, destination.coordinate_y);
+    }
 
-
-    if (n =! length) {  
+    if (n != length) {
         double smallest = 80;
         int index = -1;
         for (int i = 0; i < length; i++) {
@@ -194,7 +216,8 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
                 smallest = Root_mean_square[i];
                 index = i;
             }
-            else {continue;
+            else {
+                continue;
             }
         }
         int xmax = GRID_SIZE.x;
@@ -202,11 +225,11 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
         struct Coordinate destination = calculateWaypoint(start_x, start_y, heading[index], xmax, ymax);
         printf("Waypoint coordinates: (%f, %f)\n", destination.coordinate_x, destination.coordinate_y);
     }
-    
+
     //No optimal straight line to bounds
     if (n == length) {
         int size = 15; //7; //dimensions (CARPET_SIZE.x)
-        double grid_spacing = size/(ROW-1.0);
+        double grid_spacing = size / (ROW - 1.0);
         //start coordinate node position
         struct Coordinate start_position;
         start_position.coordinate_x = 6.5; //drone_pos.x
@@ -237,7 +260,7 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
 
             }
         }
-        
+
         // Print the generated grid
         printf("Generated Grid:\n");
         for (int i = 0; i < ROW; i++) {
@@ -250,9 +273,9 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
 
 
         //Generate destination in region with lowest probability for obstacles
-        int slice = (ROW+1) / 2;  //(ROW+1) / 2
+        int slice = (ROW + 1) / 2;  //(ROW+1) / 2
         //printf("%d", slice);
-        double list_probability[4] = {0}; // Initialize array to hold probabilities for each region
+        double list_probability[4] = { 0 }; // Initialize array to hold probabilities for each region
 
         // Calculate probabilities for each region
         int total_cells;
@@ -260,7 +283,7 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
             for (int cols = 0; cols < 2; cols++) {
                 int rows_start = rows * slice;
                 int rows_end = (rows + 1) * slice;
-                int cols_start = (cols) * slice;
+                int cols_start = (cols)*slice;
                 int cols_end = (cols + 1) * slice;
 
                 total_cells = (rows_end - rows_start) * (cols_end - cols_start);
@@ -270,7 +293,8 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
                         if (grid[i][j] == 0) {
                             n++;
                         }
-                        else { continue;
+                        else {
+                            continue;
                         }
                     }
                 }
@@ -292,7 +316,8 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
                 min_value = list_probability[item];
                 index = item;
             }
-            else { continue;
+            else {
+                continue;
             }
         }
 
@@ -302,55 +327,59 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
         int dest_col = -1;
         while (dest_row < 0 && dest_col < 0) {
             switch (index) {
-                case 0:
-                    dest_row = rand() % slice;
-                    dest_col = rand() % slice;
-                    if (grid[dest_row][dest_col] == 0) {
-                        dest_row = -1;
-                        dest_col = -1;
-                    }
-                    else {break;
-                    }
-                case 1:
-                    dest_row = rand() % slice;
-                    dest_col = slice + rand() % slice;
-                    if (grid[dest_row][dest_col] == 0) {
-                        dest_row = -1;
-                        dest_col = -1;
-                    }
-                    else {break;
-                    }
-                case 2:
-                    dest_row = slice + rand() % slice;
-                    dest_col = rand() % slice;
-                    if (grid[dest_row][dest_col] == 0) {
-                        dest_row = -1;
-                        dest_col = -1;
-                    }
-                    else {break;
-                    }
-                case 3:
-                    dest_row = slice + rand() % slice;
-                    dest_col = slice + rand() % slice;               
-                    if (grid[dest_row][dest_col] == 0) {
-                        dest_row = -1;
-                        dest_col = -1;
-                    }
-                    else {break;
-                    }
+            case 0:
+                dest_row = rand() % slice;
+                dest_col = rand() % slice;
+                if (grid[dest_row][dest_col] == 0) {
+                    dest_row = -1;
+                    dest_col = -1;
+                }
+                else {
+                    break;
+                }
+            case 1:
+                dest_row = rand() % slice;
+                dest_col = slice + rand() % slice;
+                if (grid[dest_row][dest_col] == 0) {
+                    dest_row = -1;
+                    dest_col = -1;
+                }
+                else {
+                    break;
+                }
+            case 2:
+                dest_row = slice + rand() % slice;
+                dest_col = rand() % slice;
+                if (grid[dest_row][dest_col] == 0) {
+                    dest_row = -1;
+                    dest_col = -1;
+                }
+                else {
+                    break;
+                }
+            case 3:
+                dest_row = slice + rand() % slice;
+                dest_col = slice + rand() % slice;
+                if (grid[dest_row][dest_col] == 0) {
+                    dest_row = -1;
+                    dest_col = -1;
+                }
+                else {
+                    break;
+                }
 
             }
 
         }
         printf("%d, ", dest_row);
-        printf("%d\n", dest_col);   
+        printf("%d\n", dest_col);
 
         aStarSearch(grid, start_row, start_col, dest_row, dest_col);
         // will backtrack optimal path from destination to start position in the coordinates
 
-    }   
-    
-  
+    }
+
+
 }
 
 int main() {
