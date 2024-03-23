@@ -64,7 +64,7 @@ void group_10_avoider_periodic(void)
     return;
   }
 
-  PRINT("Retrieved position from ABI: (x: %.3f, y: %.3f) \n", obstacle_x, obstacle_y);
+  //PRINT("Retrieved position from ABI: (x: %.3f, y: %.3f) \n", obstacle_x, obstacle_y);
 
   float moveDistance = maxDistance;
 
@@ -185,6 +185,6 @@ uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i *new_coor)
 float findNewHeading()
 {
   // TODO: Implement this to determine which way to go.
-  return 0.f;
+  return 0.0f;
 }
 

@@ -3,9 +3,9 @@
 #include "utility.h"
 #include "constants.h"
 #include "image_processing.h"
-#include "rms.h"
+//#include "rms.h"
 
-void processImage(const DroneData& drone_data) {
+void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
     // Draw drone position on grid.
     DroneState drone_state = drone_data.state;
 
@@ -36,6 +36,10 @@ void processImage(const DroneData& drone_data) {
     cv::Point center = { size[1] / 2, size[0] / 2 };
 
     cv::Mat grid = cv::Mat(GRID_SIZE.x, GRID_SIZE.y, CV_8UC3);
+    grid.setTo(cv::Scalar(255,255,255));
+
+    //cv::Mat grid;
+    //prev_grid.copyTo(grid);
 
     int top_left_x = ((ARENA_SIZE.x - CARPET_SIZE.x) / 2) / ARENA_SIZE.x * GRID_SIZE.x;
     int top_left_y = ((ARENA_SIZE.y - CARPET_SIZE.y) / 2) / ARENA_SIZE.y * GRID_SIZE.y;
@@ -45,7 +49,7 @@ void processImage(const DroneData& drone_data) {
     // Draw green carpet
     cv::rectangle(grid, cv::Point(top_left_x, top_left_y), cv::Point(bottom_right_x, bottom_right_y), cv::Scalar(0, 250, 0), -1);
 
-    Vector2i* obstacle_list = NULL;
+    //Vector2i* obstacle_list = NULL;
     int length = 0;
     //Vector2f obstacle_list =  
     // Draw lines from center of screen to found obstacles.
@@ -56,7 +60,7 @@ void processImage(const DroneData& drone_data) {
 
         DroneState modified_drone_state = drone_state;
         
-        float CAMERA_TILT = degToRad(20.0);
+        float CAMERA_TILT = degToRad(0.0);
         modified_drone_state.optitrack_angle.y -= CAMERA_TILT;
 
         /*
@@ -82,10 +86,10 @@ void processImage(const DroneData& drone_data) {
 
         Vector2i point_grid_pos_clamped = { (int)clamp(point_grid_pos.x, 0, GRID_SIZE.x - 1), (int)clamp(point_grid_pos.y, 0, GRID_SIZE.y - 1) };
 
-        obstacle_list = appendElement(obstacle_list, &length, point_grid_pos_clamped);
+        //obstacle_list = appendElement(obstacle_list, &length, point_grid_pos_clamped);
         //printf("%f", obstacle_list[0]);
 
-        
+        cv::Point obstacle_point = cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y);
 
         cv::circle(grid, cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y), 2, cv::Scalar(255, 0, 0), -1);
         cv::line(img, cv::Point(drone_pos.x, drone_pos.y), cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y), cv::Scalar(0));
@@ -95,6 +99,8 @@ void processImage(const DroneData& drone_data) {
 
     cv::circle(grid, cv::Point(drone_pos.x, drone_pos.y), DRONE_RADIUS, cv::Scalar(0), -1);
     cv::line(grid, cv::Point(start_pos.x, start_pos.y), cv::Point(end_pos.x, end_pos.y), cv::Scalar(128), 2);
+
+    //prev_grid = prev_grid + grid * 0.4;
 
     // Display images.
     cv::imshow("Image", drone_data.image);
@@ -109,6 +115,7 @@ void processImage(const DroneData& drone_data) {
         return;
     }
 
+/*
     int start_x = drone_pos.x;
     int start_y = drone_pos.y;
 
@@ -145,7 +152,7 @@ void processImage(const DroneData& drone_data) {
     struct Coordinate destination = calculateWaypoint(start_x, start_y, heading[index], xmax, ymax);
     printf("Waypoint coordinates: (%f, %f)\n", destination.coordinate_x, destination.coordinate_y);
 
-
+*/
 }
 
 int main() {
@@ -153,14 +160,18 @@ int main() {
     initDrawingWindows();
 
     // Directory path to drone images relative to src directory
-    const char* drone_images_directory = "../images/run2/";
+    const char* drone_images_directory = "../images/run1/";
     const char* drone_data_directory = "../data/";
     const char* cache_data_directory = "../cache/";
-    const char* drone_data_file = "run2.csv";
+    const char* drone_data_file = "run1.csv";
 
     std::vector<DroneData> drone_data = getDroneData(drone_images_directory, cache_data_directory, drone_data_directory, drone_data_file);
+    
+    //cv::Mat grid = cv::Mat(GRID_SIZE.x, GRID_SIZE.y, CV_8UC3);
+    //grid.setTo(cv::Scalar(255,255,255));
+    
     for (auto& data : drone_data) {
-        processImage(data);
+        processImage(data);//, grid);
     }
 
     
