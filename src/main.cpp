@@ -27,9 +27,55 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
     Vector2i end_pos = Vector2i{ (int)clamp(drone_pos.x + x_dir, 0, GRID_SIZE.x), (int)clamp(drone_pos.y + y_dir, 0, GRID_SIZE.y) };
         
     Image img;
+    //// Define camera matrix and distortion coefficients
+    //cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) << 254.80142347, 0, 272.9569783,
+    //    0, 246.12646616, 173.41638933,
+    //    0, 0, 1);
+    //cv::Mat distCoeffs = (cv::Mat_<double>(4, 1) << 0.03678781, -0.05588154, 0.00051716, -0.01505311);
+
+    //cv::undistort(drone_data.image, img, cameraMatrix, distCoeffs);
     drone_data.image.copyTo(img);
 
-    std::vector<cv::Point> objectDistances = processImageForObjects(img);    
+    /*cv::imshow("DistortedImage", drone_data.image);
+    cv::imshow("UndistortedImage", img);
+    cv::waitKey(0);*/
+
+    std::vector<cv::Point> objectImagePointsInt = processImageForObjects(img);
+   
+    // Define camera matrix and distortion coefficients
+    cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) << 187.81447443, 0, 261.61616548,
+        0, 186.06739848, 128.43303997,
+        0, 0, 1);
+    cv::Mat distCoeffs = (cv::Mat_<double>(4, 1) << -0.0169843, 0.0194144, -0.01150561, 0.00194345);
+
+    // Convert cv::Point to cv::Point2f
+    std::vector<cv::Point2f> objectImagePoints;
+    for (size_t i = 0; i < objectImagePointsInt.size(); ++i) {
+        objectImagePoints.push_back(cv::Point2f(static_cast<float>(objectImagePointsInt[i].x),
+            static_cast<float>(objectImagePointsInt[i].y)));
+    }
+
+    // Vector for storing undistorted points
+    std::vector<cv::Point2f> undistortedObjectPoints;
+    std::vector<cv::Point> undistortedObjectPointsInt;
+    if (!objectImagePoints.empty()) {
+        // Undistort points
+        cv::undistortPoints(objectImagePoints, undistortedObjectPoints, cameraMatrix, distCoeffs, cv::noArray(), cameraMatrix);
+
+        // Optionally, convert back to cv::Point if you need integer coordinates after undistortion
+        for (size_t i = 0; i < undistortedObjectPoints.size(); ++i) {
+            undistortedObjectPointsInt.push_back(cv::Point(static_cast<int>(undistortedObjectPoints[i].x),
+                static_cast<int>(undistortedObjectPoints[i].y)));
+        }
+
+        //// Print out original and undistorted points
+        //for (size_t i = 0; i < objectImagePointsInt.size(); ++i) {
+        //    std::cout << "Original: " << objectImagePointsInt[i] << " Undistorted: " << undistortedObjectPointsInt[i] << std::endl;
+        //}
+    }
+    else {
+        //std::cout << "No points to undistort!" << std::endl;
+    }
         
     cv::MatSize size = img.size;
     // OpenCV image size gives [h, w]
@@ -53,9 +99,9 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
     int length = 0;
     //Vector2f obstacle_list =  
     // Draw lines from center of screen to found obstacles.
-    for (size_t i = 0; i < objectDistances.size(); i++)
+    for (size_t i = 0; i < undistortedObjectPointsInt.size(); i++)
     {
-        Vector2i point_cam_pos = { objectDistances[i].x, objectDistances[i].y };
+        Vector2i point_cam_pos = { undistortedObjectPointsInt[i].x, undistortedObjectPointsInt[i].y };
         
 
         DroneState modified_drone_state = drone_state;
@@ -94,7 +140,7 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
         cv::circle(grid, cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y), 2, cv::Scalar(255, 0, 0), -1);
         cv::line(img, cv::Point(drone_pos.x, drone_pos.y), cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y), cv::Scalar(0));
 
-        cv::line(img, { center.x, center.y }, objectDistances[i], cv::Scalar(0));
+        cv::line(img, { center.x, center.y }, undistortedObjectPointsInt[i], cv::Scalar(0));
     }
 
     cv::circle(grid, cv::Point(drone_pos.x, drone_pos.y), DRONE_RADIUS, cv::Scalar(0), -1);
@@ -108,7 +154,7 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
     cv::imshow("Grid", grid);
 
     // Pause before going to next frame.
-    cv::waitKey(0);
+    cv::waitKey(250);
 
     if (cv::waitKey(30) == 27) // Wait for 'esc' key press to exit
     {

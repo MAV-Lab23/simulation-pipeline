@@ -304,9 +304,13 @@ static Vector2f getObstacleGridPosition(
     // Direction vector of the line
     Vector3f direction_vector_drone = { cos_lat * cos_lon,
                                         cos_lat * sin_lon,
-                                       -cos_lon * sin_lat };
+                                       cos_lon * sin_lat };
+
+    std::cout << "Direction Vector Drone: " << "(" << direction_vector_drone.x << ", " << direction_vector_drone.y << ", " << direction_vector_drone.z << ")" << std::endl;
 
     Vector3f direction_vector_opti = vectorDroneToOpti(drone_state, direction_vector_drone);
+
+    std::cout << "Direction Vector Opti: " << "(" << direction_vector_opti.x << ", " << direction_vector_opti.y << ", " << direction_vector_opti.z << ")" << std::endl;
 
     // Plane equation coefficients (for a plane parallel to xy-plane)
     float a = 0;
@@ -320,17 +324,27 @@ static Vector2f getObstacleGridPosition(
     // Intersection parameter
     float t = (-d - pos_dot) / dir_dot;
 
+    std::cout << "Intersection parameter (t) = " << t << std::endl;
+
     Vector2f translated_point = { 0, 0 };
 
-    // prevent points behind the drone
-    if (t >= 0) {
+    // Intersection point
+    float intersection_point_x = drone_state.optitrack_pos.x + t * direction_vector_opti.x;
+    float intersection_point_y = drone_state.optitrack_pos.y + t * direction_vector_opti.y;
 
-        // Intersection point
-        float intersection_point_x = drone_state.optitrack_pos.x + t * direction_vector_opti.x;
-        float intersection_point_y = drone_state.optitrack_pos.y + t * direction_vector_opti.y;
+    translated_point = { intersection_point_x, intersection_point_y };
 
-        translated_point = { intersection_point_x, intersection_point_y };
-    }
+    //// prevent points behind the drone
+    //if (t >= 0) {
+
+    //    // Intersection point
+    //    float intersection_point_x = drone_state.optitrack_pos.x + t * direction_vector_opti.x;
+    //    float intersection_point_y = drone_state.optitrack_pos.y + t * direction_vector_opti.y;
+
+    //    translated_point = { intersection_point_x, intersection_point_y };
+    //}
+
+    std::cout << "Grid position (optitrack coord): (" << intersection_point_x << ", " << intersection_point_y << ")" << std::endl;
 
     return translated_point;
 }
