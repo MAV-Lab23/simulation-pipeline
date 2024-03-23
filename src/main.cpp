@@ -3,7 +3,7 @@
 #include "utility.h"
 #include "constants.h"
 #include "image_processing.h"
-//#include "rms.h"
+#include "path_planning.h"
 
 void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
     // Draw drone position on grid.
@@ -49,7 +49,7 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
     // Draw green carpet
     cv::rectangle(grid, cv::Point(top_left_x, top_left_y), cv::Point(bottom_right_x, bottom_right_y), cv::Scalar(0, 250, 0), -1);
 
-    //Vector2i* obstacle_list = NULL;
+    Vector2i* obstacle_list = NULL;
     int length = 0;
     //Vector2f obstacle_list =  
     // Draw lines from center of screen to found obstacles.
@@ -86,7 +86,7 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
 
         Vector2i point_grid_pos_clamped = { (int)clamp(point_grid_pos.x, 0, GRID_SIZE.x - 1), (int)clamp(point_grid_pos.y, 0, GRID_SIZE.y - 1) };
 
-        //obstacle_list = appendElement(obstacle_list, &length, point_grid_pos_clamped);
+        obstacle_list = append_Vector_Element(obstacle_list, &length, point_grid_pos_clamped);
         //printf("%f", obstacle_list[0]);
 
         cv::Point obstacle_point = cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y);
@@ -115,44 +115,196 @@ void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
         return;
     }
 
-/*
+
     int start_x = drone_pos.x;
     int start_y = drone_pos.y;
 
-    int lengt = 360/15;
+    length = 360/15;
     int heading[length];
     heading[0] = 0;
 
     double Root_mean_square[length];
 
-    for (int item = 1; item < lengt; item++) {
+    for (int item = 1; item < length; item++) {
         heading[item] = heading[item - 1] + 15;
     }
 
     obstacle_list;
     int num_obstacles = sizeof(obstacle_list)/sizeof(obstacle_list[0]);
-    
+    int n = 0;    
     for (int i = 0; i < length; i++) {
         Root_mean_square[i] = CalculateRMS(start_x, start_y, heading[i], num_obstacles, obstacle_list, 0.5);
+        if ( Root_mean_square[i] == 0) {
+            n++;
+        }
+    }
+
+
+    if (n =! length) {  
+        double smallest = 80;
+        int index = -1;
+        for (int i = 0; i < length; i++) {
+            if (Root_mean_square[i] != 0 && Root_mean_square[i] < smallest) {
+                smallest = Root_mean_square[i];
+                index = i;
+            }
+            else {continue;
+            }
+        }
+        int xmax = GRID_SIZE.x;
+        int ymax = GRID_SIZE.y;
+        struct Coordinate destination = calculateWaypoint(start_x, start_y, heading[index], xmax, ymax);
+        printf("Waypoint coordinates: (%f, %f)\n", destination.coordinate_x, destination.coordinate_y);
     }
     
-    double smallest = 80;
-    int index = -1;
-    for (int i = 0; i < length; i++) {
-        if (Root_mean_square[i] != 0 && Root_mean_square[i] < smallest) {
-            smallest = Root_mean_square[i];
-            index = i;
-        }
-        else {continue;
-        }
-    }
+    //No optimal straight line to bounds
+    if (n == length) {
+        int size = 15; //7; //dimensions (CARPET_SIZE.x)
+        double grid_spacing = size/(ROW-1.0);
+        //start coordinate node position
+        struct Coordinate start_position;
+        start_position.coordinate_x = 6.5; //drone_pos.x
+        start_position.coordinate_y = 6.5; //drone_pos.y
+        int start_row; int start_col;
+        start_row = coordinate_to_row(size - start_position.coordinate_y, grid_spacing);
+        start_col = coordinate_to_col(start_position.coordinate_x, grid_spacing);
+        printf("%d", start_row);
+        printf("%d", start_col);
 
-    int xmax = GRID_SIZE.x;
-    int ymax = GRID_SIZE.y;
-    struct Coordinate destination = calculateWaypoint(start_x, start_y, heading[index], xmax, ymax);
-    printf("Waypoint coordinates: (%f, %f)\n", destination.coordinate_x, destination.coordinate_y);
 
-*/
+
+        int grid[ROW][COL];
+
+        /// INSERT actual grid below 0 = obstacle, 1 = no obstacle///
+        // Seed the random number generator with the current time
+        srand(time(NULL));
+        // Generate random values for the grid
+        for (int i = 0; i < ROW; i++) {
+            for (int j = 0; j < COL; j++) {
+                if (i == start_row && j == start_col) {
+                    grid[i][j] = 1;
+                }
+                else {
+                    // Generate a random integer (0 or 1)
+                    grid[i][j] = rand() % 2;
+                }
+
+            }
+        }
+        
+        // Print the generated grid
+        printf("Generated Grid:\n");
+        for (int i = 0; i < ROW; i++) {
+            for (int j = 0; j < COL; j++) {
+                printf("%d ", grid[i][j]);
+            }
+            printf("\n");
+        }
+        ///////////
+
+
+        //Generate destination in region with lowest probability for obstacles
+        int slice = (ROW+1) / 2;  //(ROW+1) / 2
+        //printf("%d", slice);
+        double list_probability[4] = {0}; // Initialize array to hold probabilities for each region
+
+        // Calculate probabilities for each region
+        int total_cells;
+        for (int rows = 0; rows < 2; rows++) {
+            for (int cols = 0; cols < 2; cols++) {
+                int rows_start = rows * slice;
+                int rows_end = (rows + 1) * slice;
+                int cols_start = (cols) * slice;
+                int cols_end = (cols + 1) * slice;
+
+                total_cells = (rows_end - rows_start) * (cols_end - cols_start);
+                int n = 0;
+                for (int i = rows_start; i < rows_end; i++) {
+                    for (int j = cols_start; j < cols_end; j++) {
+                        if (grid[i][j] == 0) {
+                            n++;
+                        }
+                        else { continue;
+                        }
+                    }
+                }
+                list_probability[rows * 2 + cols] = (double)n / total_cells; //region 1 (LT), region 2 (RT), region 3 (LD) and region 4 (RD)
+            }
+        }
+
+        // Print probabilities for each region
+        for (int i = 0; i < 4; i++) {
+            printf("Region %d Probability: %.2f\n", i, list_probability[i]);
+        }
+
+        //Initializing
+        double min_value = 80;
+        int index = -1;
+
+        for (int item = 0; item < 4; item++) {
+            if (list_probability[item] <= min_value) {
+                min_value = list_probability[item];
+                index = item;
+            }
+            else { continue;
+            }
+        }
+
+        printf("%d, ", index);
+        printf("%f\n", min_value);
+        int dest_row = -1;
+        int dest_col = -1;
+        while (dest_row < 0 && dest_col < 0) {
+            switch (index) {
+                case 0:
+                    dest_row = rand() % slice;
+                    dest_col = rand() % slice;
+                    if (grid[dest_row][dest_col] == 0) {
+                        dest_row = -1;
+                        dest_col = -1;
+                    }
+                    else {break;
+                    }
+                case 1:
+                    dest_row = rand() % slice;
+                    dest_col = slice + rand() % slice;
+                    if (grid[dest_row][dest_col] == 0) {
+                        dest_row = -1;
+                        dest_col = -1;
+                    }
+                    else {break;
+                    }
+                case 2:
+                    dest_row = slice + rand() % slice;
+                    dest_col = rand() % slice;
+                    if (grid[dest_row][dest_col] == 0) {
+                        dest_row = -1;
+                        dest_col = -1;
+                    }
+                    else {break;
+                    }
+                case 3:
+                    dest_row = slice + rand() % slice;
+                    dest_col = slice + rand() % slice;               
+                    if (grid[dest_row][dest_col] == 0) {
+                        dest_row = -1;
+                        dest_col = -1;
+                    }
+                    else {break;
+                    }
+
+            }
+
+        }
+        printf("%d, ", dest_row);
+        printf("%d\n", dest_col);   
+
+        aStarSearch(grid, start_row, start_col, dest_row, dest_col);
+        // will backtrack optimal path from destination to start position in the coordinates
+
+    }   
+    
+  
 }
 
 int main() {
