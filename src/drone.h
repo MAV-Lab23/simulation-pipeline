@@ -304,7 +304,7 @@ static Vector2f getObstacleGridPosition(
     // Direction vector of the line
     Vector3f direction_vector_drone = { cos_lat * cos_lon,
                                         cos_lat * sin_lon,
-                                       cos_lon * sin_lat };
+                                       -cos_lon * sin_lat };
 
     std::cout << "Direction Vector Drone: " << "(" << direction_vector_drone.x << ", " << direction_vector_drone.y << ", " << direction_vector_drone.z << ")" << std::endl;
 
