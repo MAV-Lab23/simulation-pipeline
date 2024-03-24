@@ -5,7 +5,7 @@
 #include "image_processing.h"
 #include "path_planning.h"
 
-void processImage(const DroneData& drone_data) {//, cv::Mat& prev_grid) {
+void processImage(const DroneData& drone_data, std::vector<Obstacle>) {//, cv::Mat& prev_grid) {
     // Draw drone position on grid.
     DroneState drone_state = drone_data.state;
 
@@ -357,19 +357,33 @@ int main() {
 
     initDrawingWindows();
 
-    // Directory path to drone images relative to src directory
-    const char* drone_images_directory = "../images/run1/";
-    const char* drone_data_directory = "../data/";
-    const char* cache_data_directory = "../cache/";
-    const char* drone_data_file = "run1.csv";
+    bool old_data_files = false;
 
-    std::vector<DroneData> drone_data = getDroneData(drone_images_directory, cache_data_directory, drone_data_directory, drone_data_file);
-    
     //cv::Mat grid = cv::Mat(GRID_SIZE.x, GRID_SIZE.y, CV_8UC3);
     //grid.setTo(cv::Scalar(255,255,255));
+
+    if (old_data_files) {
+
+        // Directory path to drone images relative to src directory
+        const char* drone_images_directory = "../images/run1/";
+        const char* drone_data_directory = "../data/";
+        const char* cache_data_directory = "../cache/";
+        const char* drone_data_file = "run1.csv";
+
+        std::vector<DroneData> drone_data = getDroneData(drone_images_directory, cache_data_directory, drone_data_directory, drone_data_file);
     
-    for (auto& data : drone_data) {
-        processImage(data);//, grid);
+        for (auto& data : drone_data) {
+            processImage(data, {});//, grid);
+        }
+    } else {
+
+        const char* drone_images_directory = "../images/20240324-020231/";
+
+        auto [drone_data, obstacles] = getDroneDataNew(drone_images_directory);
+    
+        for (auto& data : drone_data) {
+            processImage(data, obstacles);//, grid);
+        }
     }
 
     

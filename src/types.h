@@ -37,9 +37,15 @@ typedef struct Color {
 	uchar b;
 } Color;
 
+typedef struct Obstacle {
+	Vector2f optitrack_pos;
+	// x = roll, y = pitch, z = yaw
+	Vector3f optitrack_angle; /* radians */
+} Obstacle;
+
 typedef struct DroneState {
 	Vector3f optitrack_pos; /* meters */
-	// x = yaw, y = pitch, z = roll
+	// x = roll, y = pitch, z = yaw
 	Vector3f optitrack_angle; /* radians */
 } DroneState;
 
