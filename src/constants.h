@@ -13,8 +13,8 @@ static const int HALF_TILE_SIZE = TILE_SIZE / 2;
 static const Vector2i GRID_SIZE = { GRID_DIMENSIONS.x / TILE_SIZE, GRID_DIMENSIONS.y / TILE_SIZE };
 static const int GRID_LENGTH = GRID_SIZE.x * GRID_SIZE.y;
 
-static const Vector3f ARENA_SIZE = { 20, 20, 2 }; // meters
-static const Vector2f CARPET_SIZE = { 15, 15 }; // meters
+static const Vector3f ARENA_SIZE = { 10, 10, 2 }; // meters
+static const Vector2f CARPET_SIZE = { 7, 7 }; // meters
 
 // Image convolution
 

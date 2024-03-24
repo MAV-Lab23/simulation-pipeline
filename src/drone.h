@@ -37,7 +37,7 @@ long double getImageTimestamp(const std::filesystem::path& path) {
 std::pair<std::vector<DroneData>, std::vector<Obstacle>> getDroneDataNew(
     const std::filesystem::path& drone_images_directory) {
 
-    const std::string image_directory_name = drone_images_directory.parent_path().filename();
+    const std::string image_directory_name = drone_images_directory.parent_path().filename().string();
 
     std::cout << "INFO: Parsing image directory: " << image_directory_name << std::endl;
 
@@ -72,6 +72,7 @@ std::pair<std::vector<DroneData>, std::vector<Obstacle>> getDroneDataNew(
     aria::csv::CsvParser image_parser(f);
 
     int row_index = 0;
+    int image_index = 0;
 
     for (auto& row : image_parser) {
         if (row_index == 0) {
@@ -81,7 +82,7 @@ std::pair<std::vector<DroneData>, std::vector<Obstacle>> getDroneDataNew(
 
         uint32_t time = std::stoi(row[0]);
 
-        const std::filesystem::path image_file = sorted_paths[row_index - 2];
+        const std::filesystem::path image_file = sorted_paths[image_index];
 
         uint32_t image_time = std::stoi(image_file.stem());
 
@@ -96,7 +97,7 @@ std::pair<std::vector<DroneData>, std::vector<Obstacle>> getDroneDataNew(
         //                                   roll                pitch              yaw
         state.optitrack_angle = { std::stof(row[7]), std::stof(row[8]), std::stof(row[9]) };
 
-        Image img = cv::imread(image_file);
+        Image img = cv::imread(image_file.string());
 
         if (!img.data) {
             std::cout << "ERROR: Could not read image: " << image_file << std::endl;
@@ -104,6 +105,9 @@ std::pair<std::vector<DroneData>, std::vector<Obstacle>> getDroneDataNew(
             continue;
         }
 
+        cv::rotate(img, img, cv::ROTATE_90_COUNTERCLOCKWISE);
+
+        image_index++;
         drone_data.push_back({ img, state });
 
     }
@@ -417,11 +421,11 @@ static Vector2f getObstacleGridPosition(
                                         cos_lat * sin_lon,
                                        -cos_lon * sin_lat };
 
-    std::cout << "Direction Vector Drone: " << "(" << direction_vector_drone.x << ", " << direction_vector_drone.y << ", " << direction_vector_drone.z << ")" << std::endl;
+    //std::cout << "Direction Vector Drone: " << "(" << direction_vector_drone.x << ", " << direction_vector_drone.y << ", " << direction_vector_drone.z << ")" << std::endl;
 
     Vector3f direction_vector_opti = vectorDroneToOpti(drone_state, direction_vector_drone);
 
-    std::cout << "Direction Vector Opti: " << "(" << direction_vector_opti.x << ", " << direction_vector_opti.y << ", " << direction_vector_opti.z << ")" << std::endl;
+    //std::cout << "Direction Vector Opti: " << "(" << direction_vector_opti.x << ", " << direction_vector_opti.y << ", " << direction_vector_opti.z << ")" << std::endl;
 
     // Plane equation coefficients (for a plane parallel to xy-plane)
     float a = 0;
@@ -435,7 +439,7 @@ static Vector2f getObstacleGridPosition(
     // Intersection parameter
     float t = (-d - pos_dot) / dir_dot;
 
-    std::cout << "Intersection parameter (t) = " << t << std::endl;
+    //std::cout << "Intersection parameter (t) = " << t << std::endl;
 
     Vector2f translated_point = { 0, 0 };
 
@@ -455,7 +459,7 @@ static Vector2f getObstacleGridPosition(
     //    translated_point = { intersection_point_x, intersection_point_y };
     //}
 
-    std::cout << "Grid position (optitrack coord): (" << intersection_point_x << ", " << intersection_point_y << ")" << std::endl;
+    //std::cout << "Grid position (optitrack coord): (" << intersection_point_x << ", " << intersection_point_y << ")" << std::endl;
 
     return translated_point;
 }
