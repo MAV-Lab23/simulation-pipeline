@@ -61,11 +61,13 @@ static void obstacle_detection_cb(uint8_t __attribute__((unused)) sender_id, flo
 	obstacle_y = y;
 
 	// TODO: Add obstacle to grid.
+	float grid[GRID_SIZE];
+	initializeGrid(grid); // Add some obstacles
 }
 
 void group_10_avoider_init(void)
 {
-	new_heading = findNewHeading();
+	new_heading = findNewHeading(grid, currentX, currentY, maxDistance);
 	AbiBindMsgGROUP_10_OBSTACLE_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, &obstacle_detection_ev, obstacle_detection_cb);
 }
 
@@ -85,19 +87,10 @@ void group_10_avoider_periodic(void)
 
 	DroneState drone_state = getDroneState();
 
-	Vector2f point_norm_pos = { normalizeValue(point_optitrack_pos.x, -ARENA_SIZE.x / 2, ARENA_SIZE.x / 2),
-									  normalizeValue(point_optitrack_pos.y, -ARENA_SIZE.y / 2, ARENA_SIZE.y / 2) };
-
-	Vector2i point_grid_pos = { (int)(point_norm_pos.x * GRID_COLS.x), (int)(point_norm_pos.y * GRID_ROWS.y) };
-
-	Vector2i point_grid_pos_clamped = { (int)clamp(point_grid_pos.x, 0, GRID_COLS.x - 1), (int)clamp(point_grid_pos.y, 0, GRID_ROWS.y - 1) };
-
-	float currentX = point_grid_pos_clamped.x;
-	float currentY = point_grid_pos_clamped.y;
+	float currentX = drone_state.optitrack_pos.x;
+	float currentY = drone_state.optitrack_pos.x;
 
 	// TODO: Check grid here to see if an obstacle is ahead / found.
-	float grid[GRID_SIZE];
-	initializeGrid(grid); // Add some obstacles
 
 	// Variables to hold the results
 	int bestX, bestY;
@@ -265,15 +258,14 @@ void initializeGrid(float* grid) {
 	}
 }
 
-// Sum the probabilities along the path from (x0, y0) to (x1, y1)
+// Check for obstacles along a path and return distance closest non-zero cell
 float pathObstacleCheck(const float* grid, int x0, int y0, int x1, int y1) {
 	int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
 	int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
 	int err = dx + dy, e2;
-	float min_dist = INFINITY; // Sum of probabilities
+	float min_dist = INFINITY;
 
 	while (1) {
-		// Add the probability of the current cell to the sum
 		if (grid[x0 + (y0 * GRID_ROWS)] >= PROB_THRESHOLD) break;
 		if (x0 == x1 && y0 == y1) break; // End of line
 		float dist_to_nonzero = findNearestNonZero(grid, x0, y0);
@@ -282,7 +274,7 @@ float pathObstacleCheck(const float* grid, int x0, int y0, int x1, int y1) {
 		if (e2 >= dy) { err += dy; x0 += sx; }
 		if (e2 <= dx) { err += dx; y0 += sy; }
 	}
-	return min_dist; // Return the total probability sum
+	return min_dist; // Return the distance to closest non-zero object
 }
 
 // Function to find the distance to the nearest non-zero value in the grid from a specific point
