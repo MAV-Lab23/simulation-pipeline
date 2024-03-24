@@ -9,15 +9,23 @@
 
 // TODO: Implement paparazzi version of GetDroneState
 static DroneState getDroneState() {
-    Vector3f optitrack_pos = { stateGetPositionEnu_f()->x, stateGetPositionEnu_f()->y, stateGetPositionEnu_f()->z };
-    Vector3f optitrack_angle = { stateGetNedToBodyEulers_f()->phi, stateGetNedToBodyEulers_f()->theta, stateGetNedToBodyEulers_f()->psi };
-    DroneState state = { optitrack_pos, optitrack_angle };
+    struct FloatVect3 fixed_optitrack_pos;
+    struct FloatVect3 relative_optitrack_pos = stateGetPositionNed_f();
+    struct FloatRMat *ned_to_body_rmat_f = stateGetNedToBodyRMat_f();
+
+    float_rmat_transp_vmult(&fixed_optitrack_pos, ned_to_body_rmat_f, &relative_optitrack_pos);
+
+    Vector3f fixed_optitrack_pos_v = { fixed_optitrack_pos.x, -fixed_optitrack_pos.y, fixed_optitrack_pos.z };
+    Vector3f optitrack_angle_v = { stateGetNedToBodyEulers_f()->phi, stateGetNedToBodyEulers_f()->theta, stateGetNedToBodyEulers_f()->psi };
+
+    DroneState state = { fixed_optitrack_pos_v, optitrack_angle_v };
     return state;
 }
 
 #else
 
 #include <vector>
+#include <array>
 #include <string>
 #include <filesystem>
 #include <iostream>
@@ -27,6 +35,32 @@ static DroneState getDroneState() {
 #include <opencv2/opencv.hpp>
 
 #include <parser.hpp>
+
+void float_rmat_transp_vmult(Vector3f *vb, float *m_b2a, const Vector3f *va)
+{
+  vb->x = m_b2a[0] * va->x + m_b2a[3] * va->y + m_b2a[6] * va->z;
+  vb->y = m_b2a[1] * va->x + m_b2a[4] * va->y + m_b2a[7] * va->z;
+  vb->z = m_b2a[2] * va->x + m_b2a[5] * va->y + m_b2a[8] * va->z;
+}
+
+static DroneState getOptitrackFixedDroneState(const DroneState relative, float* rotation_matrix) {
+
+    float rotation_angle = -relative.optitrack_angle.z;
+
+    Vector3f fixed_optitrack_pos = {
+        relative.optitrack_pos.x * cos(rotation_angle) - relative.optitrack_pos.y * sin(rotation_angle),
+        relative.optitrack_pos.x * sin(rotation_angle) + relative.optitrack_pos.y * cos(rotation_angle),
+        relative.optitrack_pos.z
+    };
+
+    //float_rmat_transp_vmult(&fixed_optitrack_pos, rotation_matrix, &relative.optitrack_pos);
+
+    DroneState fixed;
+    fixed.optitrack_angle = relative.optitrack_angle;
+    fixed.optitrack_pos = { fixed_optitrack_pos.x, fixed_optitrack_pos.y, fixed_optitrack_pos.z };
+
+    return fixed;
+} 
 
 long double getImageTimestamp(const std::filesystem::path& path) {
     // Convert from microseconds to seconds.
@@ -74,10 +108,18 @@ std::pair<std::vector<DroneData>, std::vector<Obstacle>> getDroneDataNew(
     int row_index = 0;
     int image_index = 0;
 
+    std::array<float, 9> rotation_matrix;
+
     for (auto& row : image_parser) {
         if (row_index == 0) {
             row_index += 1;
             continue; // Skip label row.
+        }
+
+        if (row_index == 1) {
+            rotation_matrix = { std::stof(row[13]), std::stof(row[14]), std::stof(row[15]),
+                                std::stof(row[16]), std::stof(row[17]), std::stof(row[18]),
+                                std::stof(row[19]), std::stof(row[20]), std::stof(row[21]) };
         }
 
         uint32_t time = std::stoi(row[0]);
@@ -96,6 +138,12 @@ std::pair<std::vector<DroneData>, std::vector<Obstacle>> getDroneDataNew(
         state.optitrack_pos = { std::stof(row[1]), std::stof(row[2]), std::stof(row[3]) };
         //                                   roll                pitch              yaw
         state.optitrack_angle = { std::stof(row[7]), std::stof(row[8]), std::stof(row[9]) };
+
+        //printf("%.3f, %.3f, %.3f |", state.optitrack_pos.x, state.optitrack_pos.y, state.optitrack_pos.z);
+
+        state = getOptitrackFixedDroneState(state, rotation_matrix.data());
+
+        //printf(" %.3f, %.3f, %.3f \n", state.optitrack_pos.x, state.optitrack_pos.y, state.optitrack_pos.z);
 
         Image img = cv::imread(image_file.string());
 
@@ -133,9 +181,15 @@ std::pair<std::vector<DroneData>, std::vector<Obstacle>> getDroneDataNew(
             Obstacle obstacle;
 
             obstacle.optitrack_pos = { std::stof(o_row[1]), std::stof(o_row[2]) };
+
+            //Vector3f fixed_obstacle_pos;
+
+            //float_rmat_transp_vmult(&fixed_optitrack_pos, rotation_matrix, &relative.optitrack_pos);
+
+
             obstacle.optitrack_angle = { std::stof(o_row[3]), std::stof(o_row[4]), std::stof(o_row[5]) };
 
-            obstacles.push_back(obstacle);
+            //obstacles.push_back(obstacle);
         }
         std::cout << "INFO: Found " << obstacles.size() << " obstacles in file!" << std::endl;
     } else {

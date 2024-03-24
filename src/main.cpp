@@ -3,9 +3,10 @@
 #include "utility.h"
 #include "constants.h"
 #include "image_processing.h"
-#include "path_planning.h"
 
 void processImage(const DroneData& drone_data, std::vector<Obstacle> obstacles, bool old_data_files) {//, cv::Mat& prev_grid) {
+
+
     // Draw drone position on grid.
     DroneState drone_state = drone_data.state;
 
@@ -18,14 +19,13 @@ void processImage(const DroneData& drone_data, std::vector<Obstacle> obstacles, 
 
     // drone_pos_grid_clamped
     // TODO: Remove this clamping as it is technically not correct.
-    Vector2i drone_pos = { (int)clamp(drone_pos_grid.x, 0, GRID_SIZE.x - 1), (int)clamp(drone_pos_grid.y, 0, GRID_SIZE.y - 1) };
+    Vector2i drone_pos = { (int)clamp(drone_pos_grid.x, 0, GRID_SIZE.x), (int)clamp(drone_pos_grid.y, 0, GRID_SIZE.y) };
 
     int dir_magnitude = 30;
 
     int x_dir = dir_magnitude * cos(drone_state.optitrack_angle.z);
     int y_dir = dir_magnitude * sin(drone_state.optitrack_angle.z);
 
-    Vector2i start_pos = Vector2i{ (int)clamp(drone_pos.x, 0, GRID_SIZE.x), (int)clamp(drone_pos.y, 0, GRID_SIZE.y) };
     Vector2i end_pos = Vector2i{ (int)clamp(drone_pos.x + x_dir, 0, GRID_SIZE.x), (int)clamp(drone_pos.y + y_dir, 0, GRID_SIZE.y) };
         
     Image img;
@@ -108,7 +108,7 @@ void processImage(const DroneData& drone_data, std::vector<Obstacle> obstacles, 
 
             Vector2i o_grid_pos = { (int)(o_norm_pos.x * GRID_SIZE.x), (int)(o_norm_pos.y * GRID_SIZE.y) };
 
-            Vector2i o_grid_pos_clamped = { (int)clamp(o_grid_pos.x, 0, GRID_SIZE.x - 1), (int)clamp(o_grid_pos.y, 0, GRID_SIZE.y - 1) };
+            Vector2i o_grid_pos_clamped = { (int)clamp(o_grid_pos.x, 0, GRID_SIZE.x), (int)clamp(o_grid_pos.y, 0, GRID_SIZE.y) };
 
             cv::circle(grid, { o_grid_pos_clamped.x, o_grid_pos_clamped.y }, 5, cv::Scalar(0, 165, 255), -1);
         }
@@ -117,17 +117,14 @@ void processImage(const DroneData& drone_data, std::vector<Obstacle> obstacles, 
     //cv::Mat grid;
     //prev_grid.copyTo(grid);
 
-    Vector2i* obstacle_list = NULL;
-    int length = 0;
-    //Vector2f obstacle_list =  
     // Draw lines from center of screen to found obstacles.
-    for (size_t i = 0; i < objectGridPoints.size(); i++)
+    for (size_t i = 0; i < undistortedObjectPointsInt.size(); i++)
     {
         Vector2i point_cam_pos = { undistortedObjectPointsInt[i].x, undistortedObjectPointsInt[i].y };
 
         DroneState modified_drone_state = drone_state;
         
-        float CAMERA_TILT = degToRad(18.9);
+        float CAMERA_TILT = 0;//degToRad(18.9);
         modified_drone_state.optitrack_angle.y -= CAMERA_TILT;
 
         /*
@@ -151,10 +148,7 @@ void processImage(const DroneData& drone_data, std::vector<Obstacle> obstacles, 
 
         Vector2i point_grid_pos = { (int)(point_norm_pos.x * GRID_SIZE.x), (int)(point_norm_pos.y * GRID_SIZE.y) };
 
-        Vector2i point_grid_pos_clamped = { (int)clamp(point_grid_pos.x, 0, GRID_SIZE.x - 1), (int)clamp(point_grid_pos.y, 0, GRID_SIZE.y - 1) };
-
-        obstacle_list = append_Vector_Element(obstacle_list, &length, point_grid_pos_clamped);
-        //printf("%f", obstacle_list[0]);
+        Vector2i point_grid_pos_clamped = { (int)clamp(point_grid_pos.x, 0, GRID_SIZE.x), (int)clamp(point_grid_pos.y, 0, GRID_SIZE.y) };
 
         cv::Point obstacle_point = cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y);
 
@@ -162,11 +156,10 @@ void processImage(const DroneData& drone_data, std::vector<Obstacle> obstacles, 
         //cv::line(img, cv::Point(drone_pos.x, drone_pos.y), cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y), cv::Scalar(0));
 
         //cv::line(img, { center.x, center.y }, undistortedObjectPointsInt[i], cv::Scalar(0));
-
     }
 
     cv::circle(grid, cv::Point(drone_pos.x, drone_pos.y), DRONE_RADIUS, cv::Scalar(0), -1);
-    cv::line(grid, cv::Point(start_pos.x, start_pos.y), cv::Point(end_pos.x, end_pos.y), cv::Scalar(128), 2);
+    cv::line(grid, cv::Point(drone_pos.x, drone_pos.y), cv::Point(end_pos.x, end_pos.y), cv::Scalar(128), 1);
 
     //prev_grid = prev_grid + grid * 0.4;
 
@@ -188,7 +181,7 @@ int main() {
 
     initDrawingWindows();
 
-    bool old_data_files = true;
+    bool old_data_files = false;
 
     //cv::Mat grid = cv::Mat(GRID_SIZE.x, GRID_SIZE.y, CV_8UC3);
     //grid.setTo(cv::Scalar(255,255,255));
