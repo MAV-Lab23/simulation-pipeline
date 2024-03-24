@@ -6,8 +6,6 @@
 #include "path_planning.h"
 
 void processImage(const DroneData& drone_data, std::vector<Obstacle> obstacles, bool old_data_files) {//, cv::Mat& prev_grid) {
-
-
     // Draw drone position on grid.
     DroneState drone_state = drone_data.state;
 
@@ -123,7 +121,7 @@ void processImage(const DroneData& drone_data, std::vector<Obstacle> obstacles, 
     int length = 0;
     //Vector2f obstacle_list =  
     // Draw lines from center of screen to found obstacles.
-    for (size_t i = 0; i < undistortedObjectPointsInt.size(); i++)
+    for (size_t i = 0; i < objectGridPoints.size(); i++)
     {
         Vector2i point_cam_pos = { undistortedObjectPointsInt[i].x, undistortedObjectPointsInt[i].y };
 
@@ -164,6 +162,7 @@ void processImage(const DroneData& drone_data, std::vector<Obstacle> obstacles, 
         //cv::line(img, cv::Point(drone_pos.x, drone_pos.y), cv::Point(point_grid_pos_clamped.x, point_grid_pos_clamped.y), cv::Scalar(0));
 
         //cv::line(img, { center.x, center.y }, undistortedObjectPointsInt[i], cv::Scalar(0));
+
     }
 
     cv::circle(grid, cv::Point(drone_pos.x, drone_pos.y), DRONE_RADIUS, cv::Scalar(0), -1);
