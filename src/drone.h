@@ -1,6 +1,9 @@
 #ifndef GROUP_10_DRONE_H
 #define GROUP_10_DRONE_H
 
+#include <stdlib.h>
+#include <math.h>
+
 #include "types.h"
 #include "utility.h"
 #include "constants.h"
@@ -12,7 +15,7 @@ static float correctPitch(float pitch_rate) {
     const float PITCH_CORRECTION_FACTOR = degToRad(8);
     const float PITCH_RATE_FACTOR = -degToRad(5);
 
-    float pitch_fraction = abs(pitch_rate) / EXPECTED_MAX_PITCH_RATE;
+    float pitch_fraction = fabsf(pitch_rate) / EXPECTED_MAX_PITCH_RATE;
 
     /*
     // TODO: Maybe do some more scaling with pitch rates here?
@@ -25,28 +28,24 @@ static float correctPitch(float pitch_rate) {
     return PITCH_CORRECTION_FACTOR + PITCH_RATE_FACTOR * pitch_fraction;
 }
 
-static Vector3f optitrackToScreenRotation(Vector3f pos, enum CoordinateSystem coordinate_system) {
+static Vector3f optitrackToScreenRotation(Vector3f pos, CoordinateSystem coordinate_system) {
     
     float angle = TRUE_NORTH_TO_CARPET_ANGLE; // radians
 
     if (coordinate_system == NED) {
-        pos = {
-            pos.x * cos(angle) - pos.y * sin(angle),
-            pos.x * sin(angle) + pos.y * cos(angle),
-            -pos.z,
-        };
+        pos.x = pos.x * cos(angle) - pos.y * sin(angle);
+        pos.y = pos.x * sin(angle) + pos.y * cos(angle);
+        pos.z = -pos.z;
     } else if (coordinate_system == ENU) {
-        pos = {
-            pos.x * sin(angle) + pos.y * cos(angle),
-            pos.x * cos(angle) - pos.y * sin(angle),
-            pos.z,
-        };
+        pos.x = pos.x * sin(angle) + pos.y * cos(angle);
+        pos.y = pos.x * cos(angle) - pos.y * sin(angle);
+        pos.z = pos.z;
     }
 
     return pos;
 } 
 
-static DroneState optitrackToScreenState(DroneState state, enum CoordinateSystem coordinate_system) {
+static DroneState optitrackToScreenState(DroneState state, CoordinateSystem coordinate_system) {
     // Translate yaw from relative to true north to relative to screen north (up).
     // Clockwise is positive here.
     state.optitrack_angle.z += M_PI / 4 - TRUE_NORTH_TO_CARPET_ANGLE + M_PI;
@@ -414,164 +413,6 @@ std::vector<std::pair<cv::Mat, DroneState>> getDroneData(
         std::cout << "Created cache file at: " << cache_file << std::endl;
     }
     return drone_data;
-}
-
-static cv::Mat getHomogenousTransform(const DroneState state) {
-    // Conversion of Euler to rotation matrix.
-    // https://en.wikipedia.org/wiki/Rotation_matrix#General_3D_rotations
-    // a = yaw, b = pitch, y = roll
-    // TODO: Figure these out.
-    float a = state.optitrack_angle.z;
-    float b = -state.optitrack_angle.y;
-    float y = state.optitrack_angle.x;
-
-    float cos_yaw = cos(a);
-    float cos_pitch = cos(b);
-    float cos_roll = cos(y);
-
-    float sin_yaw = sin(a);
-    float sin_pitch = sin(b);
-    float sin_roll = sin(y);
-
-    //std::cout << "cos_yaw: " << cos_yaw << std::endl;
-    //std::cout << "sin_yaw: " << sin_yaw << std::endl;
-    //std::cout << "cos_pitch: " << cos_pitch << std::endl;
-    //std::cout << "sin_pitch: " << sin_pitch << std::endl;
-    //std::cout << "cos_roll: " << cos_roll << std::endl;
-    //std::cout << "sin_roll: " << sin_roll << std::endl;
-
-    cv::Mat rotation_matrix = cv::Mat(4, 4, CV_32F);
-
-    rotation_matrix.at<float>(0, 0) = cos_yaw * cos_pitch;
-    rotation_matrix.at<float>(0, 1) = cos_yaw * sin_pitch * sin_roll - sin_yaw * cos_roll;
-    rotation_matrix.at<float>(0, 2) = cos_yaw * sin_pitch * cos_roll + sin_yaw * sin_roll;
-    rotation_matrix.at<float>(0, 3) = state.optitrack_pos.x;
-
-    rotation_matrix.at<float>(1, 0) = sin_yaw * cos_pitch;
-    rotation_matrix.at<float>(1, 1) = sin_yaw * sin_pitch * sin_roll + cos_yaw * cos_roll;
-    rotation_matrix.at<float>(1, 2) = sin_yaw * sin_pitch * cos_roll - cos_yaw * sin_roll;
-    rotation_matrix.at<float>(1, 3) = state.optitrack_pos.y;
-
-    rotation_matrix.at<float>(2, 0) = -sin_pitch;
-    rotation_matrix.at<float>(2, 1) = cos_pitch * sin_roll;
-    rotation_matrix.at<float>(2, 2) = cos_pitch * cos_roll;
-    rotation_matrix.at<float>(2, 3) = state.optitrack_pos.z;
-
-    rotation_matrix.at<float>(3, 0) = 0;
-    rotation_matrix.at<float>(3, 1) = 0;
-    rotation_matrix.at<float>(3, 2) = 0;
-    rotation_matrix.at<float>(3, 3) = 1;
-
-    return rotation_matrix;
-}
-
-static Vector3f vectorDroneToOpti(const DroneState state, const Vector3f drone_point) {
-    cv::Mat drone_vector = cv::Mat(4, 1, CV_32F);
-
-    drone_vector.at<float>(0, 0) = drone_point.x;
-    drone_vector.at<float>(1, 0) = drone_point.y;
-    drone_vector.at<float>(2, 0) = drone_point.z;
-    drone_vector.at<float>(3, 0) = 0;
-
-    cv::Mat rotation_matrix = cv::Mat(4, 4, CV_32F);
-    rotation_matrix = getHomogenousTransform(state);
-
-    cv::Mat result = cv::Mat(4, 1, CV_32F); 
-
-    result = rotation_matrix * drone_vector;
-
-    Vector3f output = { result.at<float>(0, 0), result.at<float>(1, 0), result.at<float>(2, 0) };
-
-    return output;
-}
-
-static Vector2f getGridPosition(
-    const cv::Size drone_cam_size,
-    const cv::Point2f cam_point,
-    float drone_fov_width,
-    DroneState state,
-    bool correct_longitude) {
-
-    float ground_height = 0;
-
-    float aspect_ratio = (float)drone_cam_size.width / (float)drone_cam_size.height;
-
-    assert(aspect_ratio > 0);
-
-    float drone_fov_height = drone_fov_width / aspect_ratio;
-
-    assert(drone_fov_height < drone_fov_width && "Drone fov height should not be more than fov width (for landscape images)");
-
-    float image_fov[2] = { drone_fov_width, drone_fov_height };
-
-    // Convert values from 0 to cam_size -> 0 to 1.
-    float point_norm[2] = { normalizeValue(cam_point.x, 0.0f, (float)drone_cam_size.width),
-                            normalizeValue(cam_point.y, 0.0f, (float)drone_cam_size.height) };
-
-    assert(point_norm[0] >= 0.0 && point_norm[1] >= 0.0);
-    assert(point_norm[0] <= 1.0 && point_norm[1] <= 1.0);
-
-    // Convert values from 0 to 1 -> -1 to 1.
-    float point[2] = { (point_norm[0] * 2) - 1, (point_norm[1] * 2) - 1 };
-
-    assert(point[0] >= -1.0 && point[1] >= -1.0);
-    assert(point[0] <= 1.0 && point[1] <= 1.0);
-
-    float longitude = point[0] * image_fov[0] / 2.0;
-    float latitude = -point[1] * image_fov[1] / 2.0;
-
-    if (correct_longitude) {
-        // I noticed that FOV might be shifted or distorted with respect to the center of the drone slightly.
-        float FOV_WIDTH_SHIFT_CORRECTION_FACTOR = degToRad(7.0);
-
-        longitude += FOV_WIDTH_SHIFT_CORRECTION_FACTOR;
-    }
-
-    float sin_lat = sin(latitude);
-    float cos_lat = cos(latitude);
-    float sin_lon = sin(longitude);
-    float cos_lon = cos(longitude);
-
-    // Direction vector of the line
-    Vector3f direction_vector_drone = { cos_lat * cos_lon,
-                                        cos_lat * sin_lon,
-                                       -cos_lon * sin_lat };
-
-    Vector3f direction_vector_opti = vectorDroneToOpti(state, direction_vector_drone);
-
-    // Plane equation coefficients (for a plane parallel to xy-plane)
-    float a = 0;
-    float b = 0;
-    float c = 1;
-    float d = -ground_height;
-
-    float pos_dot = state.optitrack_pos.x * a + state.optitrack_pos.y * b + state.optitrack_pos.z * c;
-    float dir_dot = direction_vector_opti.x * a + direction_vector_opti.y * b + direction_vector_opti.z * c;
-    
-    // Intersection parameter
-    float t = (-d - pos_dot) / dir_dot;
-
-    Vector2f translated_point = { 0, 0 };
-
-    // Intersection point
-    float intersection_point_x = state.optitrack_pos.x + t * direction_vector_opti.x;
-    float intersection_point_y = state.optitrack_pos.y + t * direction_vector_opti.y;
-
-    translated_point = { intersection_point_x, intersection_point_y };
-
-    /*
-    // Prevent points behind the drone
-    if (t >= 0) {
-
-        // Intersection point
-        float intersection_point_x = state.optitrack_pos.x + t * direction_vector_opti.x;
-        float intersection_point_y = state.optitrack_pos.y + t * direction_vector_opti.y;
-
-        translated_point = { intersection_point_x, intersection_point_y };
-    }
-    */
-
-    return translated_point;
 }
 
 #endif

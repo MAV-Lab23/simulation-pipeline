@@ -41,8 +41,14 @@ static Vector2i optitrackCoordinateToGrid(Vector2f pos) {
 
 	Vector2i grid_pos = { (int)(pos.x * GRID_SIZE.x), (int)(pos.y * GRID_SIZE.y) };
 
-	if (grid_pos.x < 0 || grid_pos.x > GRID_SIZE.x) return { INVALID_POINT, INVALID_POINT};
-	if (grid_pos.y < 0 || grid_pos.y > GRID_SIZE.y) return { INVALID_POINT, INVALID_POINT};
+	if (grid_pos.x < 0 ||
+		grid_pos.x > GRID_SIZE.x ||
+		grid_pos.y < 0 ||
+		grid_pos.y > GRID_SIZE.y) {
+			
+		grid_pos.x = INVALID_POINT;
+		grid_pos.y = INVALID_POINT;
+	}
 
 	return grid_pos;
 }

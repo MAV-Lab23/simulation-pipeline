@@ -49,7 +49,7 @@ void coloryuv_opencv_to_yuv422(cv::Mat image, char *img, int width, int height);
  */
 void grayscale_opencv_to_yuv422(cv::Mat image, char *img, int width, int height);
 
-void uyvy_opencv_to_yuv_opencv(cv::Mat image, cv::Mat image_in, int width, int height);
+//void uyvy_opencv_to_yuv_opencv(cv::Mat image, cv::Mat image_in, int width, int height);
 
 void yuv_opencv_to_yuv422(cv::Mat image, char *img, int width, int height);
 

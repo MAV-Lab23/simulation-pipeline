@@ -20,7 +20,7 @@ struct contour_threshold {
 extern struct contour_estimation cont_est;
 extern struct contour_threshold cont_thres;
 
-int opencv_wrapper(char *img, int width, int height, const DroneState& state);
+int opencv_wrapper(char *img, int width, int height, const DroneState state);
 
 #ifdef __cplusplus
 }
