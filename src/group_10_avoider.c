@@ -42,7 +42,7 @@ enum navigation_state_t nav_state = SEARCH_FOR_SAFE_HEADING;
 float maxDistance = 2.25; // max waypoint displacement [m]
 float maxSearchDistance = 1.2; // max search distance when checking ahead for obstacles [m]
 float new_heading = 0.f;
-float grid[GRID_SIZE.x * GRID_SIZE.y];
+float* grid;
 Vector2i current = { GRID_SIZE.x / 2, GRID_SIZE.y / 2 };
 int obj_centers[5][2];
 
@@ -67,6 +67,7 @@ static void obstacle_detection_cb(uint8_t __attribute__((unused)) sender_id, flo
 
 void group_10_avoider_init(void)
 {
+	float* grid = CreateEmptyGrid();
 	initializeGrid(grid); // Add some obstacles
 	new_heading = findNewHeading(grid, current.x, current.y, maxDistance);
 	AbiBindMsgGROUP_10_OBSTACLE_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, &obstacle_detection_ev, obstacle_detection_cb);
@@ -259,12 +260,12 @@ void initializeGrid(float* grid) {
 		for (int y = obj_centers[k][1] - radius; y <= obj_centers[k][1] + radius; y++) {
 			for (int x = obj_centers[k][0] - radius; x <= obj_centers[k][0] + radius; x++) {
 				// Check if inside the grid
-				if (x >= 0 && x < GRID_COLS && y >= 0 && y < GRID_ROWS) {
+				if (x >= 0 && x < GRID_SIZE.x && y >= 0 && y < GRID_SIZE.y) {
 					// Calculate distance from the center of the obstacle
 					float distance = sqrt((x - obj_centers[k][0]) * (x - obj_centers[k][0]) + (y - obj_centers[k][1]) * (y - obj_centers[k][1]));
 					if (distance <= radius) {
 						// Set probability based on distance from center (linearly decreasing)
-						grid[x + y * GRID_ROWS] = maxProbability * (1 - distance / radius);
+						grid[x + y * GRID_SIZE.x] = maxProbability * (1 - distance / radius);
 					}
 				}
 			}
@@ -280,7 +281,7 @@ float pathObstacleCheck(const float* grid, int x0, int y0, int x1, int y1) {
 	float min_dist = INFINITY;
 
 	while (1) {
-		if (grid[x0 + (y0 * GRID_ROWS)] >= PROB_THRESHOLD) break;
+		if (grid[x0 + (y0 * GRID_SIZE.x)] >= PROB_THRESHOLD) break;
 		if (x0 == x1 && y0 == y1) break; // End of line
 		float dist_to_nonzero = findNearestNonZero(grid, x0, y0);
 		if (dist_to_nonzero < min_dist) { min_dist = dist_to_nonzero; }
@@ -299,9 +300,9 @@ float findNearestNonZero(const float* grid, int startX, int startY) {
 				int x = startX + dx;
 				int y = startY + dy;
 				// Check if (x, y) is within grid boundaries
-				if (x >= 0 && x < GRID_COLS && y >= 0 && y < GRID_ROWS) {
+				if (x >= 0 && x < GRID_SIZE.x && y >= 0 && y < GRID_SIZE.y) {
 					// Check if the grid cell is non-zero
-					if (grid[x + y * GRID_ROWS] > 0) {
+					if (grid[x + y * GRID_SIZE.x] > 0) {
 						// Return the distance to this cell
 						return sqrt(pow(x - startX, 2) + pow(y - startY, 2));
 					}
@@ -324,8 +325,8 @@ void findBestPath(float* grid, int startX, int startY, float maxDistance, int* b
 		int endY = startY + (int)(sin(rad) * maxDistance);
 
 		// Ensure endX and endY are within grid boundaries
-		endX = (endX < 0) ? 0 : (endX >= GRID_COLS) ? GRID_COLS - 1 : endX;
-		endY = (endY < 0) ? 0 : (endY >= GRID_ROWS) ? GRID_ROWS - 1 : endY;
+		endX = (endX < 0) ? 0 : (endX >= GRID_SIZE.x) ? GRID_SIZE.x - 1 : endX;
+		endY = (endY < 0) ? 0 : (endY >= GRID_SIZE.y) ? GRID_SIZE.y - 1 : endY;
 
 		float min_dist = pathObstacleCheck(grid, startX, startY, endX, endY);
 
@@ -370,14 +371,14 @@ float checkObstaclesAhead(float currentHeading) {
 
 void printGrid(const float* grid, int current.x, int current.y, float currentHeading, float newHeading) {
 	printf("Grid (with current position and headings):\n");
-	for (int y = 0; y < GRID_ROWS; y++) {
-		for (int x = 0; x < GRID_COLS; x++) {
+	for (int y = 0; y < GRID_SIZE.y; y++) {
+		for (int x = 0; x < GRID_SIZE.x; x++) {
 			// Mark the current position with 'C', the path of current heading with '-', and the path of new heading with '+'
 			if (x == current.x && y == current.y) {
 				printf("C ");
 			}
-			else if (grid[x + y * GRID_ROWS] > 0) { // Assume any non-zero value indicates an obstacle
-				printf("%.1f ", grid[x + y * GRID_ROWS]); // Mark obstacles
+			else if (grid[x + y * GRID_SIZE.x] > 0) { // Assume any non-zero value indicates an obstacle
+				printf("%.1f ", grid[x + y * GRID_SIZE.x]); // Mark obstacles
 			}
 			else {
 				printf(". "); // Mark free space
