@@ -1,4 +1,7 @@
-#pragma once
+#ifndef GROUP_10_CONSTANTS_H
+#define GROUP_10_CONSTANTS_H
+
+#include <limits.h>
 
 #include "types.h"
 
@@ -16,11 +19,17 @@ static const int GRID_LENGTH = GRID_SIZE.x * GRID_SIZE.y;
 static const Vector3f ARENA_SIZE = { 10, 10, 2 }; // meters
 static const Vector2f CARPET_SIZE = { 7, 7 }; // meters
 
+static const int INVALID_POINT = INT_MAX;
+
+static const float TRUE_NORTH_TO_CARPET_ANGLE = 0.454001; // radians
+
 // Image convolution
 
-static const float CURRENT_IMAGE_WEIGHT = 0.4; // 0 to 1
+static const float CURRENT_IMAGE_WEIGHT = 0.4f; // 0 to 1
 
 // Drone parameters
 
-static const float DRONE_FOV_ANGLE = 90.0f; // degrees (full fov)
-static const int DRONE_RADIUS = 7; // pixels / frame
+static const float DRONE_FOV_ANGLE = 140.0f; // degrees (full fov)
+static const float CAMERA_TILT = 18.9; // degrees
+
+#endif
