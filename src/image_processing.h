@@ -1,4 +1,5 @@
-#pragma once
+#ifndef GROUP_10_IMAGE_PROCESSING_H
+#define GROUP_10_IMAGE_PROCESSING_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,18 +9,30 @@
 #include <opencv2/core/mat.hpp>
 #include <opencv2/opencv.hpp>
 
+#include "drone.h"
 #include "types.h"
 #include "constants.h"
 #include "utility.h"
 
 using Contour = std::vector<cv::Point>;
 
-cv::Mat weightedCombine(const cv::Mat& addition, const cv::Mat& storage, float addition_weight) {
-	assert(addition_weight >= 0.0f && addition_weight <= 1.0f);
+std::vector<cv::Point2f> undistortPoints(const std::vector<cv::Point2f>& distorted_points) {
+    // Define camera matrix and distortion coefficients
+    cv::Mat camera_matrix = (cv::Mat_<double>(3, 3) << 
+        187.81447443,            0, 261.61616548,
+                   0, 186.06739848, 128.43303997,
+                   0,            0,            1);
 
-	float storage_weight = 1.0f - addition_weight;
+    cv::Mat distortion_coeffs = (cv::Mat_<double>(4, 1) << 
+    -0.0169843, 0.0194144, -0.01150561, 0.00194345);
 
-	return addition_weight * addition + storage_weight * storage;
+    std::vector<cv::Point2f> points;
+
+    if (!distorted_points.empty()) {
+        cv::undistortPoints(distorted_points, points, camera_matrix, distortion_coeffs, cv::noArray(), camera_matrix);
+    }
+
+    return points;
 }
 
 std::vector<cv::Point> clampContourY(const std::vector<cv::Point>& contour, int y_threshold) {
@@ -38,9 +51,6 @@ cv::Mat extractLargestContour(const cv::Mat& image, std::vector<std::vector<cv::
 	cv::Mat single_channel;
 	cv::cvtColor(image, single_channel, cv::COLOR_BGR2GRAY);
 
-	// Create output image (same size and type as input)
-	cv::Mat filtered_image = cv::Mat::zeros(single_channel.rows, single_channel.cols, CV_8UC1);
-
 	// Find contours
 	std::vector<std::vector<cv::Point>> contours;
 	std::vector<cv::Vec4i> hierarchy;
@@ -51,7 +61,7 @@ cv::Mat extractLargestContour(const cv::Mat& image, std::vector<std::vector<cv::
 	});
 
 	// Extract largest contour (if any)
-	std::vector<std::vector<cv::Point>> largest_contour;
+	std::vector<std::vector<cv::Point>> largest_contours;
 	
 	int contour_draw_count = 10;
 
@@ -60,7 +70,7 @@ cv::Mat extractLargestContour(const cv::Mat& image, std::vector<std::vector<cv::
 	for (size_t i = 0; i < contour_draw_count; i++)
 	{
 		if (i < contours.size() && cv::contourArea(contours[i]) > contour_area_threshold) {
-			largest_contour.push_back(contours[i]);
+			largest_contours.push_back(contours[i]);
 		}
 	}
 
@@ -73,66 +83,84 @@ cv::Mat extractLargestContour(const cv::Mat& image, std::vector<std::vector<cv::
 	std::vector<std::vector<cv::Point>> floor_contours;
 	std::vector<std::vector<cv::Point>> above_contours;
 	int highest_y_coordinate = 1000000;
-	static int previous_highest_y = 1000000;
-	if (largest_contour.size() > 0) {
-		for (size_t j = 0; j < largest_contour[0].size(); j++)
+	static int horizon_y = 1000000;
+	if (largest_contours.size() > 0) {
+		for (size_t j = 0; j < largest_contours[0].size(); j++)
 		{
-			if (largest_contour[0][j].y < highest_y_coordinate) {
-				highest_y_coordinate = largest_contour[0][j].y;
-				if (previous_highest_y == 1000000) {
-					previous_highest_y = highest_y_coordinate;
+			if (largest_contours[0][j].y < highest_y_coordinate) {
+				highest_y_coordinate = largest_contours[0][j].y;
+				if (horizon_y == 1000000) {
+					horizon_y = highest_y_coordinate;
 				}
 				else {
-					if (previous_highest_y > highest_y_coordinate) {
-						if (abs(previous_highest_y - highest_y_coordinate) < horizon_y_threshold) {
-							previous_highest_y = highest_y_coordinate;
+					if (horizon_y > highest_y_coordinate) {
+						if (abs(horizon_y - highest_y_coordinate) < horizon_y_threshold) {
+							horizon_y = highest_y_coordinate;
 						}
 						else {
 							loops_with_unreset_horizon++;
 						}
 						if (loops_with_unreset_horizon >= horizon_reset_threshold) {
-							previous_highest_y = highest_y_coordinate;
+							horizon_y = highest_y_coordinate;
 							loops_with_unreset_horizon = 0;
 						}
 					}
 					else {
-						previous_highest_y = highest_y_coordinate;
+						horizon_y = highest_y_coordinate;
 					}
 				}
 			}
 		}
 
-		floor_cns.push_back(largest_contour[0]);
-		above_cns.push_back(largest_contour[0]);
+		floor_cns.push_back(largest_contours[0]);
+		//above_cns.push_back(largest_contours[0]);
 
-		for (size_t i = 1; i < largest_contour.size(); i++)
+		for (size_t i = 1; i < largest_contours.size(); i++)
 		{
-			//largest_contour[i] = clampContourY(largest_contour[i], previous_highest_y);
+			//largest_contours[i] = clampContourY(largest_contours[i], horizon_y);
 			bool checkarea = false;
-			for (size_t j = 0; j < largest_contour[i].size(); j++)
+			for (size_t j = 0; j < largest_contours[i].size(); j++)
 			{
-				if (largest_contour[i][j].y > previous_highest_y) {
+				if (largest_contours[i][j].y > horizon_y) {
 					checkarea = true;
 				}
 			}
 			if (checkarea) {
-				if (cv::contourArea(largest_contour[i]) > contour_above_horizon_area_threshold) {
-					above_cns.push_back(largest_contour[i]);
-					floor_cns.push_back(largest_contour[i]);
+				if (cv::contourArea(largest_contours[i]) > contour_above_horizon_area_threshold) {
+					above_cns.push_back(largest_contours[i]);
 				}
-			}
-			else {
-				above_cns.push_back(largest_contour[i]);
-				floor_cns.push_back(largest_contour[i]);
+			} else {
+				floor_cns.push_back(largest_contours[i]);
 			}
 		}
 	}
 
-	// Draw horizon line.
-	//cv::line(filtered_image, cv::Point(0, previous_highest_y), cv::Point(filtered_image.cols, previous_highest_y), cv::Scalar(255), 2);
+	// Create output image (same size and type as input)
+	cv::Mat filtered_image = cv::Mat::zeros(image.size(), CV_8UC1);
+	if (floor_cns.size() > 0) {
+		std::vector<std::vector<cv::Point>> cns = { floor_cns[0] };
 
-	cv::drawContours(filtered_image, floor_cns, -1, cv::Scalar(255), cv::FILLED);
-	cv::drawContours(filtered_image, above_cns, -1, cv::Scalar(255), cv::FILLED);
+		cv::drawContours(filtered_image, cns, -1, cv::Scalar(255), cv::FILLED);
+	}
+	//cv::drawContours(filtered_image, above_cns, -1, cv::Scalar(255), cv::FILLED);
+
+	// Draw horizon line.
+	bool draw_horizon = true;
+
+	cv::Mat filtered_image_with_horizon;
+
+	if (draw_horizon) {
+		filtered_image.copyTo(filtered_image_with_horizon);
+		cv::line(filtered_image_with_horizon, cv::Point(0, horizon_y), cv::Point(filtered_image_with_horizon.cols, horizon_y), cv::Scalar(230), 2);
+		
+		#ifndef IN_PAPARAZZI
+		cv::imshow("Filtered", filtered_image_with_horizon);
+		#endif
+	} else {
+		#ifndef IN_PAPARAZZI
+		cv::imshow("Filtered", filtered_image);
+		#endif
+	}
 
 	return filtered_image;
 }
@@ -144,7 +172,12 @@ cv::Mat isolateGreenFloor(const cv::Mat& image, cv::Mat& isolatedFloor, cv::Mat&
 
 	// Define range of green color in HSV
 	// Threshold the HSV image to get only green color.
-	cv::inRange(hsvImage, cv::Scalar(20, 0, 0), cv::Scalar(80, 255, 220), mask);
+	if (IN_REAL_LIFE == 1) {
+		cv::inRange(hsvImage, cv::Scalar(20, 0, 0), cv::Scalar(80, 255, 220), mask);
+	} else {
+		// Gazebo needs different color values due to simulated camera.
+		cv::inRange(hsvImage, cv::Scalar(20, 100, 0), cv::Scalar(80, 255, 140), mask);
+	}
 
 	// Erode and dilate to remove noise
 	cv::erode(mask, mask, cv::Mat(), cv::Point(-1, -1), 1);
@@ -156,6 +189,196 @@ cv::Mat isolateGreenFloor(const cv::Mat& image, cv::Mat& isolatedFloor, cv::Mat&
 	return mask;
 }
 
+cv::RotatedRect minAreaRect(const std::vector<cv::Point>& contour) {
+	// Find minimum area rectangle enclosing the contour
+	return cv::minAreaRect(contour);
+}
+
+cv::Point getCircleCenter(const cv::RotatedRect& rect) {
+	// Get the center of the rectangle
+	return rect.center;
+}
+
+double getCircleRadius(const cv::RotatedRect& rect) {
+	// Calculate the radius as the maximum distance from the center to any corner
+	double half_width = rect.size.width / 2.0;
+	double half_height = rect.size.height / 2.0;
+	return std::sqrt(std::max(half_width * half_width, half_height * half_height));
+}
+
+double distanceToLine(cv::Point line_start, cv::Point line_end, cv::Point point)
+{
+	double dist_x = line_end.x - line_start.x;
+	double dist_y = line_end.y - line_start.y;
+	double normalLength = sqrt(dist_x * dist_x + dist_y * dist_y);
+	if (normalLength == 0.0) return 0;
+	double distance = (double)((point.x - line_start.x) * (line_end.y - line_start.y) - (point.y - line_start.y) * (line_end.x - line_start.x)) / normalLength;
+	return abs(distance);
+}
+
+std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
+	// Ensure the input image is not empty
+	if (inputImage.empty()) {
+		std::cerr << "Error: Input image is empty." << std::endl;
+		return {};
+	}
+
+	// Prepare the image and mask for object distance detection
+	cv::Mat isolatedFloor, mask;
+	isolateGreenFloor(inputImage, isolatedFloor, mask); // Assume this function is implemented elsewhere
+	std::vector<Contour> floor_cns;
+	std::vector<Contour> above_cns;
+
+	#ifndef IN_PAPARAZZI
+	cv::imshow("Floor", isolatedFloor);
+	#endif
+	
+	cv::Mat filteredFloor = extractLargestContour(isolatedFloor, floor_cns, above_cns);
+	//cv::Mat res = detectHarrisCorners(filteredFloor, cns);
+
+	// Clone the input image for annotation to preserve the original
+	cv::Mat annotatedImage = inputImage.clone();
+
+	cv::Mat contour_edges = filteredFloor.clone();
+
+	// Detect object distances and update the original image (if necessary)
+	// Assuming the floor border is detected from the bottom of the image
+	int height = inputImage.rows;
+	int width = inputImage.cols;
+	cv::Point bottomCenter(width / 2, height - 1);
+
+	// Kernel for morphological operations
+	int kernelSize = 5;
+	cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernelSize, kernelSize));
+
+	// Process the mask to detect edges and dilate
+	cv::Mat processedMask;
+	cv::Canny(filteredFloor, processedMask, 100, 200);
+
+	#ifndef IN_PAPARAZZI
+	cv::imshow("Intermediate1", processedMask);
+	#endif
+
+	std::vector<cv::Point2f> non_hull_points;
+
+	if (floor_cns.size() > 0) {
+		cv::Mat drawing = cv::Mat::zeros(contour_edges.size(), CV_8UC1);
+		for (size_t i = 0; i < floor_cns.size(); i++) {
+			Contour border_counter = floor_cns[i];
+
+			std::vector<cv::Point> hull;
+			cv::convexHull(border_counter, hull, true); // Clockwise orientation, return points
+
+			// Draw the original contour and convex hull (optional)
+			//cv::drawContours(drawing, std::vector<std::vector<cv::Point>>(1, border_counter), 0, cv::Scalar(255), 2);
+			cv::drawContours(drawing, std::vector<std::vector<cv::Point>>(1, hull), 0, cv::Scalar(255), 2);
+		}
+		for (size_t i = 0; i < above_cns.size(); i++) {
+			// Find the minimum area rectangle
+			cv::RotatedRect min_area_rect = minAreaRect(above_cns[i]);
+			// Get circle center and radius based on the rectangle
+			cv::Point circle_center = getCircleCenter(min_area_rect);
+			double circle_radius = getCircleRadius(min_area_rect);
+			cv::circle(drawing, circle_center, round(circle_radius), cv::Scalar(255), 2);  // Red for circle
+		}
+		#ifndef IN_PAPARAZZI
+		cv::imshow("Intermediate2", drawing);
+		#endif
+
+		std::vector<cv::Point> hull;
+		cv::convexHull(floor_cns[0], hull, true); // Clockwise orientation, return points
+
+		int distance_threshold = 20;
+		int dist_thresh2 = distance_threshold * distance_threshold;
+
+
+		cv::Mat hull_outliers = inputImage;//cv::Mat::zeros(isolatedFloor.size(), CV_8UC3);
+
+		/*for (auto& hull_point : hull) {
+			cv::circle(hull_outliers, hull_point, 1, cv::Scalar(255, 0, 0), 2);
+		}*/
+
+		for (auto& pointC : floor_cns[0]) {
+	
+			bool skip = false;
+			for (size_t i = 0; i < hull.size() - 1; ++i) {
+				cv::Point pointA = hull[i];
+				cv::Point pointB = hull[i + 1];
+
+				if (distanceToLine(pointA, pointB, pointC) < distance_threshold) {
+					skip = true;
+					break;
+				}
+			}
+			if (!skip) {
+				non_hull_points.push_back({ (float)pointC.x, (float)pointC.y });
+			}
+		}
+
+		for (int i = 0; i < non_hull_points.size(); i++) {
+			cv::circle(hull_outliers, non_hull_points[i], 1, cv::Scalar(0, 0, 255), 2);
+		}
+
+		//cv::dilate(dilated, dilated, kernel, cv::Point(-1, -1), 2);
+
+		#ifndef IN_PAPARAZZI
+		cv::imshow("Intermediate3", hull_outliers);
+		#endif
+	}
+
+	// Detect and smooth the floor border
+	//std::vector<int> floorBorder(width, 0);
+	//std::vector<int> smoothedBorder(width, 0);
+	//detectFloorBorder(processedMask, floorBorder);
+	//smoothFloorBorder(floorBorder, smoothedBorder);
+	// Detect object positions along the floor border
+	//std::vector<cv::Point> objectPositions;
+	//detectObjectPositions(smoothedBorder, objectPositions);
+
+	//return objectPositions;
+	return non_hull_points;
+}
+
+std::vector<cv::Point> getGridPoints(
+	const cv::Size& img_size,
+	const DroneState& state,
+	std::vector<cv::Point2f> points,
+	bool undistort,
+	bool correct_pitch,
+	bool correct_longitude) {
+	if (undistort) {
+		points = undistortPoints(points);
+	}
+
+	//printf("Pos: %.3f, %.3f, %.3f \n", state.optitrack_pos.x, state.optitrack_pos.y, state.optitrack_pos.z);
+	//printf("Angles: %.3f, %.3f, %.3f \n", radToDeg(state.optitrack_angle.x), radToDeg(state.optitrack_angle.y), radToDeg(state.optitrack_angle.z));
+
+    std::vector<cv::Point> grid_points;
+    // Transform each point from camera view to bird's eye view (and relative to grid).
+    for (size_t i = 0; i < points.size(); i++) {
+		DroneState corrected = state;
+		if (correct_pitch) {
+			float pitch_correction = correctPitch(state.optitrack_ang_rates.y);
+			corrected.optitrack_angle.y += pitch_correction;
+		}
+        Vector2f optitrack_point = getGridPosition(
+			img_size,
+			points[i],
+			degToRad(DRONE_FOV_ANGLE),
+			corrected,
+			correct_longitude);
+
+        Vector2i grid_point = optitrackCoordinateToGrid(optitrack_point);
+
+        if (!validVector(grid_point)) continue;
+
+        grid_points.emplace_back(grid_point.x, grid_point.y);
+    }
+
+    return grid_points;
+}
+
+/*
 void detectFloorBorder(const cv::Mat& processedImage, std::vector<int>& floorBorder) {
 	for (int x = 0; x < processedImage.cols; ++x) {
 		for (int y = processedImage.rows - 1; y >= 0; --y) {
@@ -230,7 +453,6 @@ void mergeCloseLines(const std::vector<cv::Vec4i>& lines, std::vector<cv::Vec4i>
 		merged[i] = true;
 	}
 }
-
 
 cv::Mat detectHarrisCorners(const cv::Mat& image, const std::vector<std::vector<cv::Point>>& contours) {
 
@@ -309,158 +531,11 @@ cv::Vec4i getLongestLine(const std::vector<cv::Point>& contour) {
 std::vector<cv::Point> smoothContour(const std::vector<cv::Point>& contour, double epsilon = 0.005) {
 	// Input: Rough contour represented as a vector of points
 	// epsilon: Approximation accuracy (adjust based on smoothness desired)
-
 	// Apply polygonal approximation (Douglas-Peucker algorithm)
 	std::vector<cv::Point> approx_contour;
 	cv::approxPolyDP(contour, approx_contour, epsilon * cv::arcLength(contour, true), true);
-
 	return approx_contour;
 }
+*/
 
-
-cv::RotatedRect minAreaRect(const std::vector<cv::Point>& contour) {
-	// Find minimum area rectangle enclosing the contour
-	return cv::minAreaRect(contour);
-}
-
-cv::Point getCircleCenter(const cv::RotatedRect& rect) {
-	// Get the center of the rectangle
-	return rect.center;
-}
-
-double getCircleRadius(const cv::RotatedRect& rect) {
-	// Calculate the radius as the maximum distance from the center to any corner
-	double half_width = rect.size.width / 2.0;
-	double half_height = rect.size.height / 2.0;
-	return std::sqrt(std::max(half_width * half_width, half_height * half_height));
-}
-
-double distanceToLine(cv::Point line_start, cv::Point line_end, cv::Point point)
-{
-	double dist_x = line_end.x - line_start.x;
-	double dist_y = line_end.y - line_start.y;
-	double normalLength = sqrt(dist_x * dist_x + dist_y * dist_y);
-	if (normalLength == 0.0) return 0;
-	double distance = (double)((point.x - line_start.x) * (line_end.y - line_start.y) - (point.y - line_start.y) * (line_end.x - line_start.x)) / normalLength;
-	return abs(distance);
-}
-
-std::vector<cv::Point> processImageForObjects(const cv::Mat& inputImage) {
-	// Ensure the input image is not empty
-	if (inputImage.empty()) {
-		std::cerr << "Error: Input image is empty." << std::endl;
-		return {};
-	}
-
-	// Prepare the image and mask for object distance detection
-	cv::Mat isolatedFloor, mask;
-	isolateGreenFloor(inputImage, isolatedFloor, mask); // Assume this function is implemented elsewhere
-	std::vector<Contour> floor_cns;
-	std::vector<Contour> above_cns;
-	cv::imshow("Floor", isolatedFloor);
-	cv::Mat filteredFloor = extractLargestContour(isolatedFloor, floor_cns, above_cns);
-	cv::imshow("Filtered", filteredFloor);
-	//cv::Mat res = detectHarrisCorners(filteredFloor, cns);
-
-
-	// Clone the input image for annotation to preserve the original
-	cv::Mat annotatedImage = inputImage.clone();
-
-	cv::Mat contour_edges = filteredFloor.clone();
-
-	// Detect object distances and update the original image (if necessary)
-	// Assuming the floor border is detected from the bottom of the image
-	int height = inputImage.rows;
-	int width = inputImage.cols;
-	cv::Point bottomCenter(width / 2, height - 1);
-
-	// Kernel for morphological operations
-	int kernelSize = 5;
-	cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernelSize, kernelSize));
-
-	// Process the mask to detect edges and dilate
-	cv::Mat processedMask;
-	cv::Canny(filteredFloor, processedMask, 100, 200);
-
-	cv::imshow("Intermediate1", processedMask);
-
-	std::vector<cv::Point> non_hull_points;
-
-	if (floor_cns.size() > 0) {
-		cv::Mat drawing = cv::Mat::zeros(contour_edges.size(), CV_8UC1);
-		for (size_t i = 0; i < floor_cns.size(); i++)
-		{
-			Contour border_counter = floor_cns[i];
-
-			std::vector<cv::Point> hull;
-			cv::convexHull(border_counter, hull, true); // Clockwise orientation, return points
-
-			// Draw the original contour and convex hull (optional)
-			//cv::drawContours(drawing, std::vector<std::vector<cv::Point>>(1, border_counter), 0, cv::Scalar(255), 2);
-			cv::drawContours(drawing, std::vector<std::vector<cv::Point>>(1, hull), 0, cv::Scalar(255), 2);
-		}
-		for (size_t i = 0; i < above_cns.size(); i++)
-		{
-
-			// Find the minimum area rectangle
-			cv::RotatedRect min_area_rect = minAreaRect(above_cns[i]);
-			// Get circle center and radius based on the rectangle
-			cv::Point circle_center = getCircleCenter(min_area_rect);
-			double circle_radius = getCircleRadius(min_area_rect);
-			cv::circle(drawing, circle_center, round(circle_radius), cv::Scalar(255), 2);  // Red for circle
-		}
-		cv::imshow("Intermediate2", drawing);
-
-		std::vector<cv::Point> hull;
-		cv::convexHull(floor_cns[0], hull, true); // Clockwise orientation, return points
-
-		int distance_threshold = 20;
-		int dist_thresh2 = distance_threshold * distance_threshold;
-
-
-		cv::Mat hull_outliers = inputImage;//cv::Mat::zeros(isolatedFloor.size(), CV_8UC3);
-
-		/*for (auto& hull_point : hull)
-		{
-			cv::circle(hull_outliers, hull_point, 1, cv::Scalar(255, 0, 0), 2);
-		}*/
-
-		for (auto& pointC : floor_cns[0]) {
-	
-			bool skip = false;
-			for (size_t i = 0; i < hull.size() - 1; ++i) {
-				cv::Point pointA = hull[i];
-				cv::Point pointB = hull[i + 1];
-
-				if (distanceToLine(pointA, pointB, pointC) < distance_threshold) {
-					skip = true;
-					break;
-				}
-			}
-			if (!skip) {
-				non_hull_points.push_back(pointC);
-			}
-		}
-
-		for (int i = 0; i < non_hull_points.size(); i++) {
-			cv::circle(hull_outliers, non_hull_points[i], 1, cv::Scalar(0, 0, 255), 2);
-		}
-
-		//cv::dilate(dilated, dilated, kernel, cv::Point(-1, -1), 2);
-
-		cv::imshow("Intermediate3", hull_outliers);
-	}
-
-	// Detect and smooth the floor border
-	std::vector<int> floorBorder(width, 0);
-	std::vector<int> smoothedBorder(width, 0);
-	detectFloorBorder(processedMask, floorBorder);
-	smoothFloorBorder(floorBorder, smoothedBorder);
-
-	// Detect object positions along the floor border
-	std::vector<cv::Point> objectPositions;
-	detectObjectPositions(smoothedBorder, objectPositions);
-
-	//return objectPositions;
-	return non_hull_points;
-}
+#endif
