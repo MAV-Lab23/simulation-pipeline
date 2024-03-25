@@ -87,10 +87,9 @@ static Vector2i worldToGrid(const Vector2i pos) {
 	return transformed_pos;
 }
 
-/*
 // This allocates memory. Clean up after yourself!
-uchar* CreateEmptyGrid() {
-	uchar* out_grid = (uchar*)malloc(GRID_LENGTH * sizeof(uchar));
+float* CreateEmptyGrid() {
+	float* out_grid = (float*)malloc(GRID_LENGTH * sizeof(float));
 	for (int j = 0; j < GRID_SIZE.y; j++)
 	{
 		int offset = j * GRID_SIZE.x;
@@ -102,7 +101,7 @@ uchar* CreateEmptyGrid() {
 	return out_grid;
 }
 
-void ClearGrid(uchar* out_grid) {
+void ClearGrid(float* out_grid) {
 	for (int j = 0; j < GRID_SIZE.y; j++)
 	{
 		int offset = j * GRID_SIZE.x;
@@ -112,7 +111,7 @@ void ClearGrid(uchar* out_grid) {
 		}
 	}
 }
-*/
+
 
 #ifndef IN_PAPARAZZI
 
