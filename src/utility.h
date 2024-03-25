@@ -1,4 +1,5 @@
-#pragma once
+#ifndef GROUP_10_UTILITY_H
+#define GROUP_10_UTILITY_H
 
 #include <stdio.h>
 
@@ -19,6 +20,10 @@
 
 #endif
 
+static bool validVector(const Vector2i vector) {
+	return vector.x != INVALID_POINT && vector.y != INVALID_POINT; 
+}
+
 // Normalize the value to the 0-1 range
 static float normalizeValue(float value, float min_value, float max_value) {
 	if (min_value == max_value) {
@@ -26,6 +31,20 @@ static float normalizeValue(float value, float min_value, float max_value) {
 	}
 
 	return (value - min_value) / (max_value - min_value);
+}
+
+// Returns { INVALID_POINT, INVALID_POINT } if coordinate is outside of grid.
+static Vector2i optitrackCoordinateToGrid(Vector2f pos) {
+
+	pos.x = normalizeValue(pos.x, -ARENA_SIZE.x / 2, ARENA_SIZE.x / 2);
+	pos.y = normalizeValue(pos.y, -ARENA_SIZE.y / 2, ARENA_SIZE.y / 2);
+
+	Vector2i grid_pos = { (int)(pos.x * GRID_SIZE.x), (int)(pos.y * GRID_SIZE.y) };
+
+	if (grid_pos.x < 0 || grid_pos.x > GRID_SIZE.x) return { INVALID_POINT, INVALID_POINT};
+	if (grid_pos.y < 0 || grid_pos.y > GRID_SIZE.y) return { INVALID_POINT, INVALID_POINT};
+
+	return grid_pos;
 }
 
 static float degToRad(float degrees) {
@@ -130,5 +149,7 @@ void writeCSV(const std::filesystem::path& filename, const std::vector<std::pair
 	// Close the file
 	myFile.close();
 }
+
+#endif
 
 #endif
