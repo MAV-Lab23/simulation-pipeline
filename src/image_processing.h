@@ -14,6 +14,12 @@
 #include "constants.h"
 #include "utility.h"
 
+#ifdef IN_PAPARAZZI
+#define PAPARAZZI_PRINT(string,...) fprintf(stderr, "[image_processing->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
+#else
+#define PAPARAZZI_PRINT(string,...)
+#endif
+
 using Contour = std::vector<cv::Point>;
 
 static cv::Mat getHomogenousTransform(const DroneState state) {
@@ -418,6 +424,8 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 	#endif
 
 	std::vector<cv::Point2f> non_hull_points;
+
+	//PAPARAZZI_PRINT("FOUND %d CONTOURS", floor_cns.size());
 
 	if (floor_cns.size() > 0) {
 		cv::Mat drawing = cv::Mat::zeros(contour_edges.size(), CV_8UC1);
