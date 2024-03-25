@@ -25,7 +25,10 @@ typedef struct Color {
 	uchar b;
 } Color;
 
-enum CoordinateSystem{ NED, ENU };
+typedef enum {
+	NED,
+	ENU
+} CoordinateSystem;
 
 typedef struct Obstacle {
 	Vector3f optitrack_pos;

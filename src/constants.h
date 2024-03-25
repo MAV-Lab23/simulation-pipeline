@@ -2,6 +2,7 @@
 #define GROUP_10_CONSTANTS_H
 
 #include <limits.h>
+#include <stdio.h>
 
 #include "types.h"
 

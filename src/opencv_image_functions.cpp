@@ -53,6 +53,7 @@ void yuv_opencv_to_yuv422(Mat image, char *img, int width, int height)
   }
 }
 
+/*
 void uyvy_opencv_to_yuv_opencv(Mat image, Mat image_in, int width, int height)
 {
 //Turn the opencv RGB colored image back in a YUV colored image for the drone
@@ -75,6 +76,7 @@ void uyvy_opencv_to_yuv_opencv(Mat image, Mat image_in, int width, int height)
     }
   }
 }
+*/
 
 void coloryuv_opencv_to_yuv422(Mat image, char *img, int width, int height)
 {

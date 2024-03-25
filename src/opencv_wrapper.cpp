@@ -9,11 +9,11 @@
 #include "modules/core/abi.h"
 #include "image_processing.h"
 
-int opencv_wrapper(char *img, int width, int height, const DroneState& state) {
+int opencv_wrapper(char *img, int width, int height, const DroneState state) {
   // Convert paparazzi image into OpenCV image.
   cv::Mat M(width, height, CV_8UC3, img);
 
-  cv::cvtColor(M, M, COLOR_YUV2BGR_UYVY);
+  cv::cvtColor(M, M, cv::COLOR_YUV2BGR_UYVY);
 
   std::vector<cv::Point2f> points = processImageForObjects(M);
   std::vector<cv::Point> grid_points = getGridPoints(M.size(), state, points, true, true, true);
