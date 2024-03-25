@@ -1,24 +1,79 @@
-#pragma once
+#ifndef GROUP_10_DRONE_H
+#define GROUP_10_DRONE_H
 
 #include "types.h"
 #include "utility.h"
+#include "constants.h"
+
+// TODO: Figure out how to make this function be more accurate.
+static float correctPitch(float pitch_rate) {
+    // TODO: Perhaps use CAMERA_TILT here.
+    const float EXPECTED_MAX_PITCH_RATE = degToRad(11.0f);
+    const float PITCH_CORRECTION_FACTOR = degToRad(8);
+    const float PITCH_RATE_FACTOR = -degToRad(5);
+
+    float pitch_fraction = abs(pitch_rate) / EXPECTED_MAX_PITCH_RATE;
+
+    /*
+    // TODO: Maybe do some more scaling with pitch rates here?
+    if (abs(pitch_rate) > degToRad(0.1)) {
+        pitch_fraction *= ???;
+        PITCH_CORRECTION_FACTOR += ???;
+    }
+    */
+
+    return PITCH_CORRECTION_FACTOR + PITCH_RATE_FACTOR * pitch_fraction;
+}
+
+static Vector3f optitrackToScreenRotation(Vector3f pos, enum CoordinateSystem coordinate_system) {
+    
+    float angle = TRUE_NORTH_TO_CARPET_ANGLE; // radians
+
+    if (coordinate_system == NED) {
+        pos = {
+            pos.x * cos(angle) - pos.y * sin(angle),
+            pos.x * sin(angle) + pos.y * cos(angle),
+            -pos.z,
+        };
+    } else if (coordinate_system == ENU) {
+        pos = {
+            pos.x * sin(angle) + pos.y * cos(angle),
+            pos.x * cos(angle) - pos.y * sin(angle),
+            pos.z,
+        };
+    }
+
+    return pos;
+} 
+
+static DroneState optitrackToScreenState(DroneState state, enum CoordinateSystem coordinate_system) {
+    // Translate yaw from relative to true north to relative to screen north (up).
+    // Clockwise is positive here.
+    state.optitrack_angle.z += M_PI / 4 - TRUE_NORTH_TO_CARPET_ANGLE + M_PI;
+
+    state.optitrack_pos = optitrackToScreenRotation(state.optitrack_pos, coordinate_system);
+    return state;
+}
 
 #ifdef IN_PAPARAZZI
 
 #include "state.h"
 
-// TODO: Implement paparazzi version of GetDroneState
+// Returns drone state relative to OpenCV coordinate system: (0, 0) = top left; (>0, >0) = bottom right.
 static DroneState getDroneState() {
-    struct FloatVect3 fixed_optitrack_pos;
-    struct FloatVect3 relative_optitrack_pos = stateGetPositionNed_f();
-    struct FloatRMat *ned_to_body_rmat_f = stateGetNedToBodyRMat_f();
 
-    float_rmat_transp_vmult(&fixed_optitrack_pos, ned_to_body_rmat_f, &relative_optitrack_pos);
-
-    Vector3f fixed_optitrack_pos_v = { fixed_optitrack_pos.x, -fixed_optitrack_pos.y, fixed_optitrack_pos.z };
+    Vector3f fixed_optitrack_pos_v = { stateGetPositionNed_f()->x, stateGetPositionNed_f()->y, stateGetPositionNed_f()->z };
     Vector3f optitrack_angle_v = { stateGetNedToBodyEulers_f()->phi, stateGetNedToBodyEulers_f()->theta, stateGetNedToBodyEulers_f()->psi };
+    Vector3f optitrack_ang_rates_v = { stateGetBodyRates_f()->p, stateGetBodyRates_f()->q, stateGetBodyRates_f()->r };
+    
+    DroneState state;
 
-    DroneState state = { fixed_optitrack_pos_v, optitrack_angle_v };
+    state.optitrack_pos = fixed_optitrack_pos_v;
+    state.optitrack_angle = optitrack_angle_v;
+    state.optitrack_ang_rates = optitrack_ang_rates_v;
+
+    state = optitrackToScreenState(state, NED);
+
     return state;
 }
 
@@ -36,31 +91,15 @@ static DroneState getDroneState() {
 
 #include <parser.hpp>
 
-void float_rmat_transp_vmult(Vector3f *vb, float *m_b2a, const Vector3f *va)
-{
-  vb->x = m_b2a[0] * va->x + m_b2a[3] * va->y + m_b2a[6] * va->z;
-  vb->y = m_b2a[1] * va->x + m_b2a[4] * va->y + m_b2a[7] * va->z;
-  vb->z = m_b2a[2] * va->x + m_b2a[5] * va->y + m_b2a[8] * va->z;
+static void fixDroneState(DroneState& in_state) {
+    // Fix drone state to center at given inclination for testing.
+    in_state.optitrack_pos.x = 0;
+    in_state.optitrack_pos.y = 0;
+    in_state.optitrack_pos.z = -1;
+    in_state.optitrack_angle.x = 0;
+    in_state.optitrack_angle.y = -degToRad(45);
+    //in_state.optitrack_angle.z = 0;
 }
-
-static DroneState getOptitrackFixedDroneState(const DroneState relative, float* rotation_matrix) {
-
-    float rotation_angle = -relative.optitrack_angle.z;
-
-    Vector3f fixed_optitrack_pos = {
-        relative.optitrack_pos.x * cos(rotation_angle) - relative.optitrack_pos.y * sin(rotation_angle),
-        relative.optitrack_pos.x * sin(rotation_angle) + relative.optitrack_pos.y * cos(rotation_angle),
-        relative.optitrack_pos.z
-    };
-
-    //float_rmat_transp_vmult(&fixed_optitrack_pos, rotation_matrix, &relative.optitrack_pos);
-
-    DroneState fixed;
-    fixed.optitrack_angle = relative.optitrack_angle;
-    fixed.optitrack_pos = { fixed_optitrack_pos.x, fixed_optitrack_pos.y, fixed_optitrack_pos.z };
-
-    return fixed;
-} 
 
 long double getImageTimestamp(const std::filesystem::path& path) {
     // Convert from microseconds to seconds.
@@ -68,8 +107,8 @@ long double getImageTimestamp(const std::filesystem::path& path) {
     return std::stol(path.filename().string()) / 1000000.0; // - 1.547248;
 }
 
-std::pair<std::vector<DroneData>, std::vector<Obstacle>> getDroneDataNew(
-    const std::filesystem::path& drone_images_directory) {
+std::pair<std::vector<std::pair<cv::Mat, DroneState>>, std::vector<Obstacle>> getDroneDataNew(
+    const std::filesystem::path& drone_images_directory, CoordinateSystem coordinate_system) {
 
     const std::string image_directory_name = drone_images_directory.parent_path().filename().string();
 
@@ -95,7 +134,7 @@ std::pair<std::vector<DroneData>, std::vector<Obstacle>> getDroneDataNew(
         return std::stoi(path1.filename().string()) < std::stoi(path2.filename().string());
     });
 
-    std::vector<DroneData> drone_data;
+    std::vector<std::pair<cv::Mat, DroneState>> drone_data;
 
     drone_data.reserve(sorted_paths.size());
 
@@ -136,16 +175,14 @@ std::pair<std::vector<DroneData>, std::vector<Obstacle>> getDroneDataNew(
 
         DroneState state;
         state.optitrack_pos = { std::stof(row[1]), std::stof(row[2]), std::stof(row[3]) };
-        //                                   roll                pitch              yaw
         state.optitrack_angle = { std::stof(row[7]), std::stof(row[8]), std::stof(row[9]) };
+        state.optitrack_ang_rates = { std::stof(row[10]), std::stof(row[11]), std::stof(row[12]) };
 
-        //printf("%.3f, %.3f, %.3f |", state.optitrack_pos.x, state.optitrack_pos.y, state.optitrack_pos.z);
-
-        state = getOptitrackFixedDroneState(state, rotation_matrix.data());
+        state = optitrackToScreenState(state, coordinate_system);
 
         //printf(" %.3f, %.3f, %.3f \n", state.optitrack_pos.x, state.optitrack_pos.y, state.optitrack_pos.z);
 
-        Image img = cv::imread(image_file.string());
+        cv::Mat img = cv::imread(image_file.string());
 
         if (!img.data) {
             std::cout << "ERROR: Could not read image: " << image_file << std::endl;
@@ -180,16 +217,26 @@ std::pair<std::vector<DroneData>, std::vector<Obstacle>> getDroneDataNew(
 
             Obstacle obstacle;
 
-            obstacle.optitrack_pos = { std::stof(o_row[1]), std::stof(o_row[2]) };
+            // TODO: Currently assuming all obstacles start from the ground and extend infinitely upward.
+            float OBSTACLE_Z = 0.0f;
 
-            //Vector3f fixed_obstacle_pos;
-
-            //float_rmat_transp_vmult(&fixed_optitrack_pos, rotation_matrix, &relative.optitrack_pos);
-
-
+            obstacle.optitrack_pos = { std::stof(o_row[1]), std::stof(o_row[2]), OBSTACLE_Z };
             obstacle.optitrack_angle = { std::stof(o_row[3]), std::stof(o_row[4]), std::stof(o_row[5]) };
 
-            //obstacles.push_back(obstacle);
+            obstacle.optitrack_angle.z += TRUE_NORTH_TO_CARPET_ANGLE;
+
+            // ENU is default if you are reading positions from Gazebo.
+            //obstacle.optitrack_pos = optitrackToScreenRotation(obstacle.optitrack_pos, ENU);
+
+            float angle = M_PI / 2 - TRUE_NORTH_TO_CARPET_ANGLE;
+
+            obstacle.optitrack_pos = {
+                -(obstacle.optitrack_pos.x * cos(angle) - obstacle.optitrack_pos.y * sin(angle)),
+                obstacle.optitrack_pos.x * sin(angle) + obstacle.optitrack_pos.y * cos(angle),
+                OBSTACLE_Z,
+            };
+
+            obstacles.push_back(obstacle);
         }
         std::cout << "INFO: Found " << obstacles.size() << " obstacles in file!" << std::endl;
     } else {
@@ -203,11 +250,12 @@ std::pair<std::vector<DroneData>, std::vector<Obstacle>> getDroneDataNew(
     return { drone_data, obstacles };
 }
 
-std::vector<DroneData> getDroneData(
+std::vector<std::pair<cv::Mat, DroneState>> getDroneData(
     const std::filesystem::path& drone_images_directory,
+    const std::filesystem::path& drone_data_file,
     const std::filesystem::path& cache_data_directory,
     const std::filesystem::path& drone_data_directory,
-    const std::filesystem::path& drone_data_file) {
+    CoordinateSystem coordinate_system) {
     if (!std::filesystem::is_directory(cache_data_directory) || 
         !std::filesystem::exists(cache_data_directory)) {
         std::filesystem::create_directory(cache_data_directory);
@@ -223,7 +271,7 @@ std::vector<DroneData> getDroneData(
         return std::stoi(path1.filename().string()) < std::stoi(path2.filename().string());
     });
 
-    std::vector<DroneData> drone_data;
+    std::vector<std::pair<cv::Mat, DroneState>> drone_data;
 
     drone_data.reserve(sorted_paths.size());
 
@@ -249,7 +297,7 @@ std::vector<DroneData> getDroneData(
 
             const std::string filepath = sorted_paths[image_index].string();
 
-            Image img = cv::imread(filepath);
+            cv::Mat img = cv::imread(filepath);
 
             if (!img.data) {
                 std::cout << "Error reading image: " << filepath << std::endl;
@@ -260,6 +308,7 @@ std::vector<DroneData> getDroneData(
             DroneState state;
             state.optitrack_pos = { std::stof(row[1]), std::stof(row[2]), std::stof(row[3]) };
             state.optitrack_angle = { std::stof(row[4]), std::stof(row[5]), std::stof(row[6]) };
+            state.optitrack_ang_rates = { std::stof(row[7]), std::stof(row[8]), std::stof(row[9]) };
 
             drone_data.push_back({ img, state });
 
@@ -275,9 +324,12 @@ std::vector<DroneData> getDroneData(
         std::vector<long double> x;
         std::vector<long double> y;
         std::vector<long double> z;
+        std::vector<long double> roll;
         std::vector<long double> yaw;
         std::vector<long double> pitch;
-        std::vector<long double> roll;
+        std::vector<long double> roll_rate;
+        std::vector<long double> yaw_rate;
+        std::vector<long double> pitch_rate;
 
         assert(sorted_paths.size() > 0);
 
@@ -298,9 +350,11 @@ std::vector<DroneData> getDroneData(
 
             DroneState state;
             state.optitrack_pos = { std::stof(row[1]), std::stof(row[2]), std::stof(row[3]) };
-            // TODO: Check that these are correct angles.
             //                                   roll                pitch              yaw
             state.optitrack_angle = { std::stof(row[7]), std::stof(row[8]), std::stof(row[9]) };
+            state.optitrack_ang_rates = { std::stof(row[10]), std::stof(row[11]), std::stof(row[12]) };
+
+            state = optitrackToScreenState(state, coordinate_system);
 
             if (image_index >= sorted_paths.size()) break;
 
@@ -310,7 +364,7 @@ std::vector<DroneData> getDroneData(
 
                 const std::string filepath = sorted_paths[image_index].string();
 
-                Image img = cv::imread(filepath);
+                cv::Mat img = cv::imread(filepath);
 
                 if (!img.data) {
                     std::cout << "Error reading image: " << filepath << std::endl;
@@ -332,6 +386,9 @@ std::vector<DroneData> getDroneData(
                 roll.push_back(chosen_state.optitrack_angle.x);
                 pitch.push_back(chosen_state.optitrack_angle.y);
                 yaw.push_back(chosen_state.optitrack_angle.z);
+                roll_rate.push_back(chosen_state.optitrack_ang_rates.x);
+                pitch_rate.push_back(chosen_state.optitrack_ang_rates.y);
+                yaw_rate.push_back(chosen_state.optitrack_ang_rates.z);
 
                 if (image_index % 30 == 0) {
                     std::cout << "Parsed " << (int)((double)image_index / (double)sorted_paths.size() * 100.0) << "% of images..." << std::endl;
@@ -347,21 +404,26 @@ std::vector<DroneData> getDroneData(
 
         assert(drone_data.size() <= sorted_paths.size());
 
-        writeCSV(cache_file, { { "index", indexes }, { "x", x }, { "y", y }, { "z", z }, { "roll", roll }, { "pitch", pitch }, { "yaw", yaw } });
+        writeCSV(cache_file, {
+            { "index", indexes },
+            { "x", x }, { "y", y }, { "z", z },
+            { "roll", roll }, { "pitch", pitch }, { "yaw", yaw },
+            { "roll_rate", roll_rate }, { "pitch_rate", pitch_rate }, { "yaw_rate", yaw_rate },
+        });
 
         std::cout << "Created cache file at: " << cache_file << std::endl;
     }
     return drone_data;
 }
 
-static cv::Mat getHomogenousTransform(const DroneState drone_state) {
+static cv::Mat getHomogenousTransform(const DroneState state) {
     // Conversion of Euler to rotation matrix.
     // https://en.wikipedia.org/wiki/Rotation_matrix#General_3D_rotations
     // a = yaw, b = pitch, y = roll
     // TODO: Figure these out.
-    float a = drone_state.optitrack_angle.z;
-    float b = drone_state.optitrack_angle.y;
-    float y = drone_state.optitrack_angle.x;
+    float a = state.optitrack_angle.z;
+    float b = -state.optitrack_angle.y;
+    float y = state.optitrack_angle.x;
 
     float cos_yaw = cos(a);
     float cos_pitch = cos(b);
@@ -383,17 +445,17 @@ static cv::Mat getHomogenousTransform(const DroneState drone_state) {
     rotation_matrix.at<float>(0, 0) = cos_yaw * cos_pitch;
     rotation_matrix.at<float>(0, 1) = cos_yaw * sin_pitch * sin_roll - sin_yaw * cos_roll;
     rotation_matrix.at<float>(0, 2) = cos_yaw * sin_pitch * cos_roll + sin_yaw * sin_roll;
-    rotation_matrix.at<float>(0, 3) = drone_state.optitrack_pos.x;
+    rotation_matrix.at<float>(0, 3) = state.optitrack_pos.x;
 
     rotation_matrix.at<float>(1, 0) = sin_yaw * cos_pitch;
     rotation_matrix.at<float>(1, 1) = sin_yaw * sin_pitch * sin_roll + cos_yaw * cos_roll;
     rotation_matrix.at<float>(1, 2) = sin_yaw * sin_pitch * cos_roll - cos_yaw * sin_roll;
-    rotation_matrix.at<float>(1, 3) = drone_state.optitrack_pos.y;
+    rotation_matrix.at<float>(1, 3) = state.optitrack_pos.y;
 
     rotation_matrix.at<float>(2, 0) = -sin_pitch;
     rotation_matrix.at<float>(2, 1) = cos_pitch * sin_roll;
     rotation_matrix.at<float>(2, 2) = cos_pitch * cos_roll;
-    rotation_matrix.at<float>(2, 3) = drone_state.optitrack_pos.z;
+    rotation_matrix.at<float>(2, 3) = state.optitrack_pos.z;
 
     rotation_matrix.at<float>(3, 0) = 0;
     rotation_matrix.at<float>(3, 1) = 0;
@@ -403,7 +465,7 @@ static cv::Mat getHomogenousTransform(const DroneState drone_state) {
     return rotation_matrix;
 }
 
-static Vector3f vectorDroneToOpti(const DroneState drone_state, const Vector3f drone_point) {
+static Vector3f vectorDroneToOpti(const DroneState state, const Vector3f drone_point) {
     cv::Mat drone_vector = cv::Mat(4, 1, CV_32F);
 
     drone_vector.at<float>(0, 0) = drone_point.x;
@@ -412,8 +474,7 @@ static Vector3f vectorDroneToOpti(const DroneState drone_state, const Vector3f d
     drone_vector.at<float>(3, 0) = 0;
 
     cv::Mat rotation_matrix = cv::Mat(4, 4, CV_32F);
-    rotation_matrix = getHomogenousTransform(drone_state);
-    //std::cout << "rotation_matrix: " << rotation_matrix << std::endl;
+    rotation_matrix = getHomogenousTransform(state);
 
     cv::Mat result = cv::Mat(4, 1, CV_32F); 
 
@@ -421,37 +482,31 @@ static Vector3f vectorDroneToOpti(const DroneState drone_state, const Vector3f d
 
     Vector3f output = { result.at<float>(0, 0), result.at<float>(1, 0), result.at<float>(2, 0) };
 
-    //std::cout << "result: " << result << std::endl;
-
     return output;
 }
 
-static Vector2f getObstacleGridPosition(
-    const cv::Mat& grid,
-    const Vector2i drone_cam_size_pixels,
-    const Vector2i point_cam_pos,
+static Vector2f getGridPosition(
+    const cv::Size drone_cam_size,
+    const cv::Point2f cam_point,
     float drone_fov_width,
-    const DroneState drone_state) {
+    DroneState state,
+    bool correct_longitude) {
 
     float ground_height = 0;
 
-    float aspect_ratio = drone_cam_size_pixels.x / drone_cam_size_pixels.y;
+    float aspect_ratio = (float)drone_cam_size.width / (float)drone_cam_size.height;
 
     assert(aspect_ratio > 0);
 
-    // TODO: Account for distortion effects.
-
-    // Assuming image has no distortion.
     float drone_fov_height = drone_fov_width / aspect_ratio;
 
     assert(drone_fov_height < drone_fov_width && "Drone fov height should not be more than fov width (for landscape images)");
 
-    // TODO: REMOVE THIS TEMPORARY: TEMP:
     float image_fov[2] = { drone_fov_width, drone_fov_height };
 
     // Convert values from 0 to cam_size -> 0 to 1.
-    float point_norm[2] = { normalizeValue(point_cam_pos.x, 0, drone_cam_size_pixels.x),
-                            normalizeValue(point_cam_pos.y, 0, drone_cam_size_pixels.y) };
+    float point_norm[2] = { normalizeValue(cam_point.x, 0.0f, (float)drone_cam_size.width),
+                            normalizeValue(cam_point.y, 0.0f, (float)drone_cam_size.height) };
 
     assert(point_norm[0] >= 0.0 && point_norm[1] >= 0.0);
     assert(point_norm[0] <= 1.0 && point_norm[1] <= 1.0);
@@ -465,6 +520,13 @@ static Vector2f getObstacleGridPosition(
     float longitude = point[0] * image_fov[0] / 2.0;
     float latitude = -point[1] * image_fov[1] / 2.0;
 
+    if (correct_longitude) {
+        // I noticed that FOV might be shifted or distorted with respect to the center of the drone slightly.
+        float FOV_WIDTH_SHIFT_CORRECTION_FACTOR = degToRad(7.0);
+
+        longitude += FOV_WIDTH_SHIFT_CORRECTION_FACTOR;
+    }
+
     float sin_lat = sin(latitude);
     float cos_lat = cos(latitude);
     float sin_lon = sin(longitude);
@@ -475,11 +537,7 @@ static Vector2f getObstacleGridPosition(
                                         cos_lat * sin_lon,
                                        -cos_lon * sin_lat };
 
-    //std::cout << "Direction Vector Drone: " << "(" << direction_vector_drone.x << ", " << direction_vector_drone.y << ", " << direction_vector_drone.z << ")" << std::endl;
-
-    Vector3f direction_vector_opti = vectorDroneToOpti(drone_state, direction_vector_drone);
-
-    //std::cout << "Direction Vector Opti: " << "(" << direction_vector_opti.x << ", " << direction_vector_opti.y << ", " << direction_vector_opti.z << ")" << std::endl;
+    Vector3f direction_vector_opti = vectorDroneToOpti(state, direction_vector_drone);
 
     // Plane equation coefficients (for a plane parallel to xy-plane)
     float a = 0;
@@ -487,35 +545,35 @@ static Vector2f getObstacleGridPosition(
     float c = 1;
     float d = -ground_height;
 
-    float pos_dot = drone_state.optitrack_pos.x * a + drone_state.optitrack_pos.y * b + drone_state.optitrack_pos.z * c;
+    float pos_dot = state.optitrack_pos.x * a + state.optitrack_pos.y * b + state.optitrack_pos.z * c;
     float dir_dot = direction_vector_opti.x * a + direction_vector_opti.y * b + direction_vector_opti.z * c;
     
     // Intersection parameter
     float t = (-d - pos_dot) / dir_dot;
 
-    //std::cout << "Intersection parameter (t) = " << t << std::endl;
-
     Vector2f translated_point = { 0, 0 };
 
     // Intersection point
-    float intersection_point_x = drone_state.optitrack_pos.x + t * direction_vector_opti.x;
-    float intersection_point_y = drone_state.optitrack_pos.y + t * direction_vector_opti.y;
+    float intersection_point_x = state.optitrack_pos.x + t * direction_vector_opti.x;
+    float intersection_point_y = state.optitrack_pos.y + t * direction_vector_opti.y;
 
     translated_point = { intersection_point_x, intersection_point_y };
 
-    //// prevent points behind the drone
-    //if (t >= 0) {
+    /*
+    // Prevent points behind the drone
+    if (t >= 0) {
 
-    //    // Intersection point
-    //    float intersection_point_x = drone_state.optitrack_pos.x + t * direction_vector_opti.x;
-    //    float intersection_point_y = drone_state.optitrack_pos.y + t * direction_vector_opti.y;
+        // Intersection point
+        float intersection_point_x = state.optitrack_pos.x + t * direction_vector_opti.x;
+        float intersection_point_y = state.optitrack_pos.y + t * direction_vector_opti.y;
 
-    //    translated_point = { intersection_point_x, intersection_point_y };
-    //}
-
-    //std::cout << "Grid position (optitrack coord): (" << intersection_point_x << ", " << intersection_point_y << ")" << std::endl;
+        translated_point = { intersection_point_x, intersection_point_y };
+    }
+    */
 
     return translated_point;
 }
+
+#endif
 
 #endif
