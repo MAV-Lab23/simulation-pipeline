@@ -1,19 +1,7 @@
-#pragma once
+#ifndef GROUP_10_TYPES_H
+#define GROUP_10_TYPES_H
 
 typedef unsigned char uchar;
-
-#ifdef IN_PAPARAZZI
-
-// TODO: Implement cv::Mat in paparazzi compatible code if needed.
-//#include <opencv2/core/mat.hpp>
-typedef uchar* Image;
-
-#else
-
-#include <opencv2/core/mat.hpp>
-typedef cv::Mat Image;
-
-#endif
 
 typedef struct Vector2f {
 	float x;
@@ -37,8 +25,10 @@ typedef struct Color {
 	uchar b;
 } Color;
 
+enum CoordinateSystem{ NED, ENU };
+
 typedef struct Obstacle {
-	Vector2f optitrack_pos;
+	Vector3f optitrack_pos;
 	// x = roll, y = pitch, z = yaw
 	Vector3f optitrack_angle; /* radians */
 } Obstacle;
@@ -47,9 +37,8 @@ typedef struct DroneState {
 	Vector3f optitrack_pos; /* meters */
 	// x = roll, y = pitch, z = yaw
 	Vector3f optitrack_angle; /* radians */
+	// x = roll rate, y = pitch rate, z = yaw rate
+	Vector3f optitrack_ang_rates; /* radians / sec */
 } DroneState;
 
-typedef struct DroneData {
-	Image image;
-	DroneState state;
-} DroneData;
+#endif
