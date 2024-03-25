@@ -4,6 +4,7 @@
 #include "state.h"
 #include "modules/core/abi.h"
 #include "drone.h"
+#include "constants.h"
 #include <time.h>
 #include <stdio.h>
 
@@ -11,12 +12,9 @@
 #include "generated/flight_plan.h"
 
 #define PRINT(string,...) fprintf(stderr, "[avoider->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
-#define GRID_ROWS 200
-#define GRID_COLS 200
-#define GRID_SIZE (GRID_ROWS * GRID_COLS)
 #define DEG_TO_RAD (M_PI / 180.0)
 #define SCAN_DISTANCE 30 // 1.5 meters in grid cells
-#define MAX_SEARCH_RADIUS (GRID_ROWS * 2.25 / ARENA_SIZE)
+#define MAX_SEARCH_RADIUS (GRID_SIZE.x * 2.25 / ARENA_SIZE)
 #define PROB_THRESHOLD 0.3
 
 static uint8_t moveWaypointForward(uint8_t waypoint, float distanceMeters);
@@ -43,6 +41,9 @@ enum navigation_state_t nav_state = SEARCH_FOR_SAFE_HEADING;
 
 float maxDistance = 2.25; // max waypoint displacement [m]
 float new_heading = 0.f;
+float grid[GRID_SIZE.x * GRID_SIZE.y];
+int currentX = 0;
+int currentY = 0;
 
 float obstacle_x = -10000;
 float obstacle_y = -10000;
@@ -61,12 +62,11 @@ static void obstacle_detection_cb(uint8_t __attribute__((unused)) sender_id, flo
 	obstacle_y = y;
 
 	// TODO: Add obstacle to grid.
-	float grid[GRID_SIZE];
-	initializeGrid(grid); // Add some obstacles
 }
 
 void group_10_avoider_init(void)
 {
+	initializeGrid(grid); // Add some obstacles
 	new_heading = findNewHeading(grid, currentX, currentY, maxDistance);
 	AbiBindMsgGROUP_10_OBSTACLE_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, &obstacle_detection_ev, obstacle_detection_cb);
 }
@@ -87,8 +87,14 @@ void group_10_avoider_periodic(void)
 
 	DroneState drone_state = getDroneState();
 
-	float currentX = drone_state.optitrack_pos.x;
-	float currentY = drone_state.optitrack_pos.x;
+	float drone_opti_x = drone_state.optitrack_pos.x;
+	float drone_opti_y = drone_state.optitrack_pos.y;
+
+	float currentX_norm = normalizeValue(drone_state.optitrack_pos.x, -ARENA_SIZE.x / 2, ARENA_SIZE.x / 2);
+	float currentY_norm = normalizeValue(drone_state.optitrack_pos.y, -ARENA_SIZE.y / 2, ARENA_SIZE.y / 2) };
+
+	currentX = (int)clamp(currentX_norm * GRID_SIZE.x, 0, GRID_SIZE.x);
+	currentY = (int)clamp(currentY_norm * GRID_SIZE.y, 0, GRID_SIZE.y);
 
 	// TODO: Check grid here to see if an obstacle is ahead / found.
 
