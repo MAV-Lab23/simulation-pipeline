@@ -23,7 +23,7 @@ static uint8_t calculateForwards(struct EnuCoor_i* new_coor, float distanceMeter
 static uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i* new_coor);
 static uint8_t setNavHeading(float heading);
 
-static float findNewHeading(float maxDistance);
+float findNewHeading(float maxDistance);
 void initializeGrid();
 float pathObstacleCheck(int x0, int y0, int x1, int y1);
 float findNearestNonZero(int startX, int startY);
@@ -113,10 +113,10 @@ static void obstacle_detection_cb(uint8_t __attribute__((unused)) sender_id, flo
 
 void group_10_avoider_init(void)
 {
-	grid = createEmptyFloatGrid();
-	timers = createEmptyIntGrid();
+	//grid = createEmptyFloatGrid();
+	//timers = createEmptyIntGrid();
 	//initializeGrid(); // Add some obstacles
-	new_heading = findNewHeading(maxDistance);
+	new_heading = 0; //findNewHeading(maxDistance);
 	AbiBindMsgGROUP_10_OBSTACLE_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, &obstacle_detection_ev, obstacle_detection_cb);
 }
 
@@ -130,6 +130,7 @@ void group_10_avoider_periodic(void)
 		return;
 	}
 
+	/*
 	// Update timers and grids that become empty
 	for (int j = 0; j < GRID_SIZE.y; j++)
 	{
@@ -146,8 +147,11 @@ void group_10_avoider_periodic(void)
 			setTimer(index, timer);
 		}
 	}
+	*/
 
 	float moveDistance = maxDistance;
+
+	/*
 
 	DroneState drone_state = getDroneState();
 
@@ -162,6 +166,7 @@ void group_10_avoider_periodic(void)
 
 	// Variables to hold the results
 	int bestX, bestY;
+	*/
 
 	// TODO: Alter obstacle_free_confidence based on grid output.
 
@@ -170,6 +175,9 @@ void group_10_avoider_periodic(void)
 	new_heading += 0.03;
 
 	setNavHeading(new_heading);
+
+
+	/*
 
 	float obstacle_confidence = 0;
 
@@ -227,6 +235,7 @@ void group_10_avoider_periodic(void)
 		break;
 	}
 	return;
+	*/
 }
 
 /*
