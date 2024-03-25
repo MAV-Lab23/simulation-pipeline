@@ -1,10 +1,11 @@
 #ifndef OPENCV_WRAPPER_H
 #define OPENCV_WRAPPER_H
 
+#include "types.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 struct contour_estimation {
   float contour_d_x;
@@ -19,7 +20,7 @@ struct contour_threshold {
 extern struct contour_estimation cont_est;
 extern struct contour_threshold cont_thres;
 
-int opencv_wrapper(char *img, int width, int height);
+int opencv_wrapper(char *img, int width, int height, const DroneState& state);
 
 #ifdef __cplusplus
 }
