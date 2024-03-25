@@ -9,31 +9,6 @@
 #include "modules/core/abi.h"
 #include "image_processing.h"
 
-int convertYUV422toBGR(const char* yuv_data, int width, int height, cv::Mat& bgr_image) {
-
-  // Check for valid input
-  if (!yuv_data || width <= 0 || height <= 0) {
-    return -1;
-  }
-
-  // Create a Mat from the YUV422 char pointer
-  cv::Mat yuv_image(height, width, CV_8UC2, (void*)yuv_data);
-
-  // Separate Y, U, and V channels (assuming U and V are subsampled by 2 horizontally)
-  cv::Mat Y = yuv_image;
-  cv::Mat U(height, width / 2, CV_8UC1, yuv_image.ptr<uchar>() + 1);
-  cv::Mat V(height, width / 2, CV_8UC1, yuv_image.ptr<uchar>() + width);
-
-  // Upsample U and V channels (nearest neighbor is a simple option)
-  cv::resize(U, U, cv::Size(width, height), cv::INTER_NEAREST);
-  cv::resize(V, V, cv::Size(width, height), cv::INTER_NEAREST);
-
-  // Convert YUV to BGR
-  cv::cvtColor(yuv_image, bgr_image, cv::COLOR_YUV2BGR_UYVY);  // Assuming YUYV order
-
-  return 0;
-}
-
 int opencv_wrapper(char *img, int width, int height, const DroneState state) {
   // Convert paparazzi image into OpenCV image.
   cv::Mat M(width, height, CV_8UC2, img);

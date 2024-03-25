@@ -7,6 +7,7 @@
 #include "constants.h"
 #include <time.h>
 #include <stdio.h>
+//#include <assert.h>
 
 #define NAV_C // needed to get the nav functions like Inside...
 #include "generated/flight_plan.h"
@@ -22,13 +23,13 @@ static uint8_t calculateForwards(struct EnuCoor_i* new_coor, float distanceMeter
 static uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i* new_coor);
 static uint8_t setNavHeading(float heading);
 
-static float findNewHeading(float* grid, int current.x, int current.y, float maxDistance);
-void initializeGrid(float* grid);
-float pathObstacleCheck(const float* grid, int x0, int y0, int x1, int y1);
-float findNearestNonZero(const float* grid, int startX, int startY);
-void findBestPath(float* grid, int startX, int startY, float maxDistance, int* bestX, int* bestY);
-float checkObstaclesAhead(float* grid, int current.x, int current.y, float currentHeading);
-void printGrid(const float* grid, int current.x, int current.y, float currentHeading, float newHeading);
+static float findNewHeading(float maxDistance);
+void initializeGrid();
+float pathObstacleCheck(int x0, int y0, int x1, int y1);
+float findNearestNonZero(int startX, int startY);
+void findBestPath(int startX, int startY, float maxDistance, int* bestX, int* bestY);
+float checkObstaclesAhead(float currentHeading);
+void printGrid(float currentHeading, float newHeading);
 
 enum navigation_state_t {
 	SAFE,
@@ -43,17 +44,44 @@ float maxDistance = 2.25; // max waypoint displacement [m]
 float maxSearchDistance = 1.2; // max search distance when checking ahead for obstacles [m]
 float new_heading = 0.f;
 float* grid;
+int* timers;
 Vector2i current = { GRID_SIZE.x / 2, GRID_SIZE.y / 2 };
-int obj_centers[5][2];
+// TEMPORARY: FOR TESTING: HAS NOTHING TO DO WITH ACTUAL OBSTACLE COUNTS.
+#define OBSTACLE_COUNT 5
+#define OBJECTS_LENGTH 5
+
+int obj_centers[OBJECTS_LENGTH][2];
 
 float obstacle_x = -10000;
 float obstacle_y = -10000;
+
+int OBSTACLE_POINT_MAX_LIFETIME = 10000; // frames of periodic function
 
 int32_t obstacle_free_confidence = 0;
 
 #ifndef GROUP_10_OBSTACLE_DETECTION_ID
 #define GROUP_10_OBSTACLE_DETECTION_ID ABI_BROADCAST
 #endif
+
+static void setGridProbability(int index, float probability) {
+	//assert(index >= 0 && index < GRID_LENGTH);
+	grid[index] = clamp(probability, 0.0f, 1.0f);
+}
+
+static float getGridProbability(int index) {
+	//assert(index >= 0 && index < GRID_LENGTH);
+	return grid[index];
+}
+
+static void setTimer(int index, int value) {
+	//assert(index >= 0 && index < GRID_LENGTH);
+	timers[index] = clamp(value, 0, OBSTACLE_POINT_MAX_LIFETIME);
+}
+
+static int getTimer(int index) {
+	//assert(index >= 0 && index < GRID_LENGTH);
+	return timers[index];
+}
 
 static abi_event obstacle_detection_ev;
 
@@ -62,14 +90,33 @@ static void obstacle_detection_cb(uint8_t __attribute__((unused)) sender_id, flo
 	obstacle_x = x;
 	obstacle_y = y;
 
-	// TODO: Add obstacle to grid.
+	// Convert 2D to 1D coordinate.
+	int index = obstacle_x + GRID_SIZE.x * obstacle_y;
+
+	// Add obstacle point to grid.
+	setGridProbability(index, 1.0);
+	setTimer(index, OBSTACLE_POINT_MAX_LIFETIME);
+
+	/*
+	// TODO: Consider something incremental like this instead:
+	int timer = getTimer(index);
+	if (timer >= 0) {
+		float PROBABILITY_INCREMENT = 0.1;
+		float probability = getGridProbability(index);
+		setGridProbability(index, probability + PROBABILITY_INCREMENT);
+	}
+	
+	*/
+
+	//PRINT("Retrieved position from ABI: (x: %.3f, y: %.3f) \n", obstacle_x, obstacle_y);
 }
 
 void group_10_avoider_init(void)
 {
-	float* grid = CreateEmptyGrid();
-	initializeGrid(grid); // Add some obstacles
-	new_heading = findNewHeading(grid, current.x, current.y, maxDistance);
+	grid = createEmptyFloatGrid();
+	timers = createEmptyIntGrid();
+	//initializeGrid(); // Add some obstacles
+	new_heading = findNewHeading(maxDistance);
 	AbiBindMsgGROUP_10_OBSTACLE_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, &obstacle_detection_ev, obstacle_detection_cb);
 }
 
@@ -83,13 +130,33 @@ void group_10_avoider_periodic(void)
 		return;
 	}
 
-	//PRINT("Retrieved position from ABI: (x: %.3f, y: %.3f) \n", obstacle_x, obstacle_y);
+	// Update timers and grids that become empty
+	for (int j = 0; j < GRID_SIZE.y; j++)
+	{
+		int offset = j * GRID_SIZE.x;
+		for (int i = 0; i < GRID_SIZE.x; i++)
+		{
+			int index = i + offset;
+			int timer = getTimer(index) - 1;
+			// TODO: Consider scaling probability from 1 to 0 based on (timer / OBSTACLE_POINT_MAX_LIFETIME).
+			if (timer <= 0) {
+				setGridProbability(index, 0);
+			}
+			// Timer is clamped to minimum 0 inside setTimer
+			setTimer(index, timer);
+		}
+	}
 
 	float moveDistance = maxDistance;
 
 	DroneState drone_state = getDroneState();
+
+	Vector2f drone_opti_pos = { drone_state.optitrack_pos.x, drone_state.optitrack_pos.y };
 	
-	current = optitrackCoordinateToGrid({ drone_state.optitrack_pos.x, drone_state.optitrack_pos.y });
+	Vector2i grid_pos = optitrackCoordinateToGrid(drone_opti_pos);
+
+	current.x = grid_pos.x;
+	current.y = grid_pos.y;
 
 	// TODO: Check grid here to see if an obstacle is ahead / found.
 
@@ -98,7 +165,13 @@ void group_10_avoider_periodic(void)
 
 	// TODO: Alter obstacle_free_confidence based on grid output.
 
-	float obstacle_confidence = checkObstaclesAhead(grid, current.x, current.y, drone_state.optitrack_angle.z);
+	//float obstacle_confidence = checkObstaclesAhead(drone_state.optitrack_angle.z);
+
+	new_heading += 0.03;
+
+	setNavHeading(new_heading);
+
+	float obstacle_confidence = 0;
 
 	switch (nav_state) {
 	case SAFE:
@@ -122,7 +195,7 @@ void group_10_avoider_periodic(void)
 		waypoint_move_here_2d(WP_TRAJECTORY);
 
 		// TODO: Search new direction
-		new_heading = findNewHeading(grid, current.x, current.y, maxDistance);
+		new_heading = findNewHeading(maxDistance);
 
 		nav_state = SEARCH_FOR_SAFE_HEADING;
 
@@ -144,7 +217,7 @@ void group_10_avoider_periodic(void)
 			setNavHeading(new_heading);
 
 			// reset safe counter
-			obstacle_free_confidence = 0;
+			obstacle_confidence = 0;
 
 			// ensure direction is safe before continuing
 			nav_state = SEARCH_FOR_SAFE_HEADING;
@@ -212,9 +285,9 @@ uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i* new_coor)
 }
 
 // This function finds the new heading based on the best path determined.
-float findNewHeading(float* grid, float maxDistance) {
+float findNewHeading(float maxDistance) {
 	int bestX, bestY;
-	findBestPath(grid, current.x, current.y, maxDistance, &bestX, &bestY);
+	findBestPath(current.x, current.y, maxDistance, &bestX, &bestY);
 
 	// Compute the angle (in radians) between the current position and the best position
 	int deltaX = bestX - current.x;
@@ -225,47 +298,41 @@ float findNewHeading(float* grid, float maxDistance) {
 }
 
 // Initialize the grid with sample data
-void initializeGrid(float* grid) {
-	// Fill with probabilities initially (0.0 for free space)
-	for (int i = 0; i < GRID_SIZE; i++) {
-		grid[i] = 0.0f; // Assume free space
-	}
-
-	float obstacles[5][2] = { {1.5, -2.5}, {-1.8, -3.4}, {0.6, 0.7}, {-1.8, 0.5}, {2.8, 2.5} };
-	float optitrack_pos[2];
-
-
-	for (size_t i = 0; i < obstacles.size(); i++)
+void initializeGrid() {
+	float obstacles[OBSTACLE_COUNT][2] = { {1.5, -2.5}, {-1.8, -3.4}, {0.6, 0.7}, {-1.8, 0.5}, {2.8, 2.5} };
+	for (size_t i = 0; i < OBSTACLE_COUNT; i++)
     {
 		float angle = M_PI / 2 - TRUE_NORTH_TO_CARPET_ANGLE;
 
-		optitrack_pos = {
+		Vector2f optitrack_pos = {
 			-(obstacles[i][0] * cos(angle) - obstacles[i][1] * sin(angle)),
-			obstacles[i][0] * sin(angle) + obstacles[i][1] * cos(angle),
+			  obstacles[i][0] * sin(angle) + obstacles[i][1] * cos(angle),
 		};
 
-        Vector2i obstacle_grid_pos = optitrackCoordinateToGrid({ optitrack_pos[0], optitrack_pos[1] });
+        Vector2i obstacle_grid_pos = optitrackCoordinateToGrid(optitrack_pos);
 
         if (!validVector(obstacle_grid_pos)) continue;
 
-		obj_centers[i] = obstacle_grid_pos;
+		obj_centers[i][0] = obstacle_grid_pos.x;
+		obj_centers[i][1] = obstacle_grid_pos.y;
     }
 
 	// Define radius and max probability for the obstacles
 	int radius = 5;
+	float radius2 = radius * radius;
 	float maxProbability = 1.0f;
 
 	// Create circular obstacles with decreasing probabilities
-	for (int k = 0; k < obj_centers.size(); k++) {
+	for (int k = 0; k < OBJECTS_LENGTH; k++) {
 		for (int y = obj_centers[k][1] - radius; y <= obj_centers[k][1] + radius; y++) {
 			for (int x = obj_centers[k][0] - radius; x <= obj_centers[k][0] + radius; x++) {
 				// Check if inside the grid
 				if (x >= 0 && x < GRID_SIZE.x && y >= 0 && y < GRID_SIZE.y) {
 					// Calculate distance from the center of the obstacle
-					float distance = sqrt((x - obj_centers[k][0]) * (x - obj_centers[k][0]) + (y - obj_centers[k][1]) * (y - obj_centers[k][1]));
-					if (distance <= radius) {
+					float distance2 = (x - obj_centers[k][0]) * (x - obj_centers[k][0]) + (y - obj_centers[k][1]) * (y - obj_centers[k][1]);
+					if (distance2 <= radius2) {
 						// Set probability based on distance from center (linearly decreasing)
-						grid[x + y * GRID_SIZE.x] = maxProbability * (1 - distance / radius);
+						grid[x + y * GRID_SIZE.x] = maxProbability * (1 - sqrt(distance2 / radius2));
 					}
 				}
 			}
@@ -274,7 +341,7 @@ void initializeGrid(float* grid) {
 }
 
 // Check for obstacles along a path and return distance closest non-zero cell
-float pathObstacleCheck(const float* grid, int x0, int y0, int x1, int y1) {
+float pathObstacleCheck(int x0, int y0, int x1, int y1) {
 	int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
 	int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
 	int err = dx + dy, e2;
@@ -283,7 +350,7 @@ float pathObstacleCheck(const float* grid, int x0, int y0, int x1, int y1) {
 	while (1) {
 		if (grid[x0 + (y0 * GRID_SIZE.x)] >= PROB_THRESHOLD) break;
 		if (x0 == x1 && y0 == y1) break; // End of line
-		float dist_to_nonzero = findNearestNonZero(grid, x0, y0);
+		float dist_to_nonzero = findNearestNonZero(x0, y0);
 		if (dist_to_nonzero < min_dist) { min_dist = dist_to_nonzero; }
 		e2 = 2 * err;
 		if (e2 >= dy) { err += dy; x0 += sx; }
@@ -293,7 +360,7 @@ float pathObstacleCheck(const float* grid, int x0, int y0, int x1, int y1) {
 }
 
 // Function to find the distance to the nearest non-zero value in the grid from a specific point
-float findNearestNonZero(const float* grid, int startX, int startY) {
+float findNearestNonZero(int startX, int startY) {
 	for (int radius = 1; radius <= MAX_SEARCH_RADIUS; radius++) {
 		for (int dy = -radius; dy <= radius; dy++) {
 			for (int dx = -radius; (abs(dx) + abs(dy)) <= radius; dx++) {
@@ -314,7 +381,7 @@ float findNearestNonZero(const float* grid, int startX, int startY) {
 }
 
 // Function to find the best direction from the current position
-void findBestPath(float* grid, int startX, int startY, float maxDistance, int* bestX, int* bestY) {
+void findBestPath(int startX, int startY, float maxDistance, int* bestX, int* bestY) {
 	*bestX = startX; // Initialize with start position in case no better path is found
 	*bestY = startY;
 	float max_min_dist = 0.f;
@@ -328,7 +395,7 @@ void findBestPath(float* grid, int startX, int startY, float maxDistance, int* b
 		endX = (endX < 0) ? 0 : (endX >= GRID_SIZE.x) ? GRID_SIZE.x - 1 : endX;
 		endY = (endY < 0) ? 0 : (endY >= GRID_SIZE.y) ? GRID_SIZE.y - 1 : endY;
 
-		float min_dist = pathObstacleCheck(grid, startX, startY, endX, endY);
+		float min_dist = pathObstacleCheck(startX, startY, endX, endY);
 
 		if (min_dist > max_min_dist) {
 			*bestX = endX;
@@ -352,24 +419,27 @@ float checkObstaclesAhead(float currentHeading) {
 	float c = dy * current.x - dx * current.y;
 
 	// Iterate over object centres in grid coordinates and check if they are within maxSearchDistance
-	for (int obj = 0; obj < obj_centers.size(); obj++) {
-		float distance2 = pow((a * obj[0] + b * obj[1] + c), 2) /  (a * a + b * b);
+	for (int i = 0; i < OBJECTS_LENGTH; i++) {
+		int obj0 = obj_centers[i][0];
+		int obj1 = obj_centers[i][1];
+		float distance2 = pow((a * obj0 + b * obj1 + c), 2) /  (a * a + b * b);
 		if (distance2 <= maxSearchDistance * maxDistance) {
 			/// Compute the angle from the drone's heading to the object
-			float deltaX = obj[0] - current.x;
-			float deltaY = obj[1] - current.y;
+			float deltaX = obj0 - current.x;
+			float deltaY = obj1 - current.y;
 			float objectAngle = atan2(deltaY, deltaX) - currentHeading;
 
 			//  Check if the angle is withhhin the specified limit
-			if (fabs(objectAnge) <= 10 * DEG_TO_RAD) {
-				closestDistance = fmin(closestDistance, distance);
+			if (fabs(objectAngle) <= 10 * DEG_TO_RAD) {
+				closestDistance = fmin(closestDistance, distance2);
 			}
 		}
 	}
+	return closestDistance;
 }
 
 
-void printGrid(const float* grid, int current.x, int current.y, float currentHeading, float newHeading) {
+void printGrid(float currentHeading, float newHeading) {
 	printf("Grid (with current position and headings):\n");
 	for (int y = 0; y < GRID_SIZE.y; y++) {
 		for (int x = 0; x < GRID_SIZE.x; x++) {

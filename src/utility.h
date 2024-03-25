@@ -87,9 +87,24 @@ static Vector2i worldToGrid(const Vector2i pos) {
 	return transformed_pos;
 }
 
+// TODO: Clean these up using casting
+
 // This allocates memory. Clean up after yourself!
-float* CreateEmptyGrid() {
+static float* createEmptyFloatGrid() {
 	float* out_grid = (float*)malloc(GRID_LENGTH * sizeof(float));
+	for (int j = 0; j < GRID_SIZE.y; j++)
+	{
+		int offset = j * GRID_SIZE.x;
+		for (int i = 0; i < GRID_SIZE.x; i++)
+		{
+			out_grid[i + offset] = 0.0f;
+		}
+	}
+	return out_grid;
+}
+
+static int* createEmptyIntGrid() {
+	int* out_grid = (int*)malloc(GRID_LENGTH * sizeof(int));
 	for (int j = 0; j < GRID_SIZE.y; j++)
 	{
 		int offset = j * GRID_SIZE.x;
@@ -101,7 +116,18 @@ float* CreateEmptyGrid() {
 	return out_grid;
 }
 
-void ClearGrid(float* out_grid) {
+static void clearFloatGrid(float* out_grid) {
+	for (int j = 0; j < GRID_SIZE.y; j++)
+	{
+		int offset = j * GRID_SIZE.x;
+		for (int i = 0; i < GRID_SIZE.x; i++)
+		{
+			out_grid[i + offset] = 0.0f;
+		}
+	}
+}
+
+static void clearIntGrid(int* out_grid) {
 	for (int j = 0; j < GRID_SIZE.y; j++)
 	{
 		int offset = j * GRID_SIZE.x;
@@ -111,7 +137,6 @@ void ClearGrid(float* out_grid) {
 		}
 	}
 }
-
 
 #ifndef IN_PAPARAZZI
 
