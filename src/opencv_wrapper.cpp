@@ -1,5 +1,7 @@
 #include "opencv_wrapper.h"
 
+#ifdef GROUP_10_OPENCV
+
 #define PRINT(string,...) fprintf(stderr, "[opencv_wrapper->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
 
 #include <opencv2/core/core.hpp>
@@ -37,3 +39,5 @@ int opencv_wrapper(char *img, int width, int height, const DroneState state) {
 
   return 0;
 }
+
+#endif
