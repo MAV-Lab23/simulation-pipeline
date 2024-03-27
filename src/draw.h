@@ -37,17 +37,9 @@ void drawObstacles(cv::Mat& out_grid, const std::vector<Obstacle>& obstacles) {
     for (size_t i = 0; i < obstacles.size(); i++)
     {
         const Obstacle& o = obstacles[i];
+        Vector2i obstacle_grid_pos = getObstacleGridPos(o.optitrack_pos);
 
-        Vector2f pos;
-        pos.x = normalizeValue(o.optitrack_pos.x, -(ARENA_SIZE.x + 2) / 2.0, (ARENA_SIZE.x + 2) / 2.0);
-        pos.y = normalizeValue(o.optitrack_pos.y, -(ARENA_SIZE.y + 2) / 2.0, (ARENA_SIZE.y + 2) / 2.0);
-
-        Vector2i obstacle_grid_pos = { (int)(pos.x * GRID_SIZE.x), (int)(pos.y * GRID_SIZE.y) };
-
-
-
-
-        if (!validVector(obstacle_grid_pos)) continue;
+        if (!validVectorInt(obstacle_grid_pos)) continue;
 
         cv::circle(out_grid, { obstacle_grid_pos.x, obstacle_grid_pos.y }, obstacle_radius, obstacle_color, -1);
     }
@@ -61,47 +53,38 @@ void drawGridPoints(cv::Mat& out_grid, const std::vector<cv::Point>& points, con
 }
 
 void drawCarpet(cv::Mat& out_grid) {
-    // Calculate carpet start and end points.
-    // Top left
-    int tl_x = (ARENA_SIZE.x - CARPET_SIZE.x) / (2 * ARENA_SIZE.x) * GRID_SIZE.x;
-    int tl_y = (ARENA_SIZE.y - CARPET_SIZE.y) / (2 * ARENA_SIZE.y) * GRID_SIZE.y;
-    // Bottom right
-    int br_x = tl_x + CARPET_SIZE.x / ARENA_SIZE.x * GRID_SIZE.x;
-    int br_y = tl_y + CARPET_SIZE.y / ARENA_SIZE.y * GRID_SIZE.y;
-
+    Vector2i top_left;
+    Vector2i bottom_right;
+    getCarpetCorners(&top_left, &bottom_right);
     cv::Scalar carpet_color = { 0, 250, 0 };
-    cv::rectangle(out_grid, { tl_x, tl_y }, { br_x, br_y }, carpet_color, -1);
+    cv::rectangle(out_grid, { top_left.x, top_left.y }, { bottom_right.x, bottom_right.y }, carpet_color, -1);
+}
+
+void drawHeading(cv::Mat& out_grid, const Vector2i& pos, float heading, float heading_length, const cv::Scalar& line_color, int thickness) {
+    // If the drone is outside of the grid boundaries do not draw it.
+    if (!validVectorInt(pos)) return;
+
+    int x_dir = heading_length / METERS_PER_GRID_CELL.x * -cos(heading);
+    int y_dir = heading_length / METERS_PER_GRID_CELL.y * -sin(heading);
+
+    cv::Point end_pos;
+    end_pos.x = (int)clamp(pos.x + x_dir, 0, GRID_SIZE.x);
+    end_pos.y = (int)clamp(pos.y + y_dir, 0, GRID_SIZE.y);
+        
+    cv::Point d = { pos.x, pos.y };
+    cv::line(out_grid, d, end_pos, line_color, thickness);
 }
 
 // Grid heading in radians.
 void drawDrone(cv::Mat& out_grid, const DroneState& state) {
     Vector2i grid_pos = optitrackCoordinateToGrid({ state.optitrack_pos.x, state.optitrack_pos.y });
-    //Vector2i grid_pos_cam = optitrackCoordinateToGrid({ state.optitrack_pos.x + x_cam, state.optitrack_pos.y + y_cam });
-
-    // If the drone is outside of the grid boundaries do not draw it.
-    if (!validVector(grid_pos)) return;
-
-    int heading_length = 30;
-
-    float heading = state.optitrack_angle.z;
-
-    int x_dir = heading_length * -cos(heading);
-    int y_dir = heading_length * -sin(heading);
-
-    cv::Point end_pos;
-    end_pos.x = (int)clamp(grid_pos.x + x_dir, 0, GRID_SIZE.x);
-    end_pos.y = (int)clamp(grid_pos.y + y_dir, 0, GRID_SIZE.y);
-        
+    int heading_length = 1;
+    drawHeading(out_grid, grid_pos, state.optitrack_angle.z, heading_length, cv::Scalar(128, 128, 128), 2);
+    cv::Point d = { grid_pos.x, grid_pos.y };
     // Drone point
     int drone_radius = 6;
     cv::Scalar drone_color = { 0, 0, 0 };
-
-    cv::Point d = { grid_pos.x, grid_pos.y };
-    //cv::Point c = { grid_pos_cam.x, grid_pos_cam.y };
-
     cv::circle(out_grid, d, drone_radius, drone_color, -1);
-    //cv::circle(out_grid, c, drone_radius, cv::Scalar(128), -1);
-    cv::line(out_grid, d, end_pos, cv::Scalar(128), 1);
 }
 
 void drawGrid(
