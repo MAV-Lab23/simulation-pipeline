@@ -32,7 +32,7 @@ static float normalizeValue(const float value, const float min_value, const floa
 	return val;
 }
 
-void getCarpetCorners(Vector2i* out_top_left, Vector2i* out_bottom_right) {
+static void getCarpetCorners(Vector2i* out_top_left, Vector2i* out_bottom_right) {
     // Calculate carpet start and end points.
     out_top_left->x = (ARENA_SIZE.x - CARPET_SIZE.x) / (2 * ARENA_SIZE.x) * GRID_SIZE.x;
     out_top_left->y = (ARENA_SIZE.y - CARPET_SIZE.y) / (2 * ARENA_SIZE.y) * GRID_SIZE.y;

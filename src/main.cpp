@@ -157,8 +157,8 @@ void loop(cv::Mat& in_img, DroneState& state, const std::vector<Obstacle>& obsta
         addGridElement(index);
     }
 
-    Vector2i drone_grid_pos = getDroneGridPosition(state);
-    Vector2i closest_cell = updateGrid(drone_grid_pos);
+    Vector2i drone_grid_pos = getObjectGridPosition(state.optitrack_pos.x, state.optitrack_pos.y);
+    Vector2i closest_cell = updateGrid(drone_grid_pos, true);
     Vector2i best_endpoint = { 0, 0 };
 
     float best_heading = getBestHeading(grid, drone_grid_pos, state.optitrack_angle.z, &best_endpoint);

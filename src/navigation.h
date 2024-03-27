@@ -91,11 +91,11 @@ static void findBestHeading(
     cv::Mat& grid,
 #endif
   const Vector2i drone_position,
-  const float drone_heading,
+  const float drone_heading /* radians */,
   const float max_distance,
   const float min_point_distance,
   Vector2i* best_endpoint,
-  float* best_heading /* degrees */) {
+  float* best_heading /* radians */) {
 
     float distance_threshold2 = min_point_distance * min_point_distance / (METERS_PER_GRID_CELL.x * METERS_PER_GRID_CELL.x);
 
@@ -159,7 +159,7 @@ static void findBestHeading(
             smallest_heading_difference = diff;
             best_endpoint->x = (int)endpoint.x;
             best_endpoint->y = (int)endpoint.y;
-            *best_heading = heading;
+            *best_heading = heading_rad;
         }
         // shortest_distance2 < best_heading_distance2
         // best_heading_distance2 = shortest_distance2;
@@ -183,6 +183,7 @@ static void findBestHeading(
     }
 }
 
+// Gets the best drone heading in radians.
 static float getBestHeading(
 #ifndef IN_PAPARAZZI
     cv::Mat& grid,
@@ -202,10 +203,10 @@ static float getBestHeading(
     return best_heading;
 }
 
-static Vector2i getDroneGridPosition(const DroneState state) {
+static Vector2i getObjectGridPosition(float optitrack_x, float optitrack_y) {
   Vector2f opti_pos;
-  opti_pos.x = state.optitrack_pos.x;
-  opti_pos.y = state.optitrack_pos.y;
+  opti_pos.x = optitrack_x;
+  opti_pos.y = optitrack_y;
 
   Vector2i drone_grid_pos = optitrackCoordinateToGrid(opti_pos);
     
@@ -213,8 +214,8 @@ static Vector2i getDroneGridPosition(const DroneState state) {
 	if (!validVectorInt(drone_grid_pos)) {
       Vector2f norm_pos;
 
-      norm_pos.x = normalizeValue(state.optitrack_pos.x, -ARENA_SIZE.x / 2.0f, ARENA_SIZE.x / 2.0f);
-      norm_pos.y = normalizeValue(state.optitrack_pos.y, -ARENA_SIZE.y / 2.0f, ARENA_SIZE.y / 2.0f);
+      norm_pos.x = normalizeValue(optitrack_x, -ARENA_SIZE.x / 2.0f, ARENA_SIZE.x / 2.0f);
+      norm_pos.y = normalizeValue(optitrack_y, -ARENA_SIZE.y / 2.0f, ARENA_SIZE.y / 2.0f);
 
       // Get a clamped pos as an estimate of drone position.
       drone_grid_pos.x = clamp((int)(norm_pos.x * GRID_SIZE.x), 0, GRID_SIZE.x);
@@ -224,7 +225,7 @@ static Vector2i getDroneGridPosition(const DroneState state) {
 }
 
 // Update timers and grids that become empty
-Vector2i updateGrid(const Vector2i drone_grid_pos) {
+Vector2i updateGrid(const Vector2i drone_grid_pos, bool subtract_timers) {
 	Vector2i closest_cell = { INVALID_POINT, INVALID_POINT };
 	for (int j = 0; j < GRID_SIZE.y; j++)
 	{
@@ -232,24 +233,28 @@ Vector2i updateGrid(const Vector2i drone_grid_pos) {
 		for (int i = 0; i < GRID_SIZE.x; i++)
 		{
 			int index = i + offset;
-			int timer = getTimer(index) - 1;
+			int timer = getTimer(index);
+      if (subtract_timers) {
+        timer -= 1;
+      }
 			// TODO: Consider scaling probability from 1 to 0 based on (timer / OBSTACLE_POINT_MAX_LIFETIME).
 			if (timer <= 0) {
 				setGridProbability(index, 0);
 			}
 			// Timer is clamped to minimum 0 inside setTimer
 			setTimer(index, timer);
-            if (timer > 0) {
+      if (timer > 0) {
 				float probability = getGridProbability(index);
 				if (probability > 0) {
-					float x_dist = (i - drone_grid_pos.x) * METERS_PER_GRID_CELL.x;
-					float y_dist = (j - drone_grid_pos.y) * METERS_PER_GRID_CELL.y;
-					float dist = sqrtf(x_dist * x_dist + y_dist * y_dist);
-					if (dist <= closest_obstacle_distance) {
-						closest_obstacle_distance = dist;
-						closest_cell.x = i;
-						closest_cell.x = j;
-					}
+          // TODO: Figure out if this is necessary or useful.
+					// float x_dist = (i - drone_grid_pos.x) * METERS_PER_GRID_CELL.x;
+					// float y_dist = (j - drone_grid_pos.y) * METERS_PER_GRID_CELL.y;
+					// float dist = sqrtf(x_dist * x_dist + y_dist * y_dist);
+					// if (dist <= closest_obstacle_distance) {
+					// 	closest_obstacle_distance = dist;
+					// 	closest_cell.x = i;
+					// 	closest_cell.x = j;
+					// }
 				}
 			}
 		}

@@ -28,10 +28,7 @@ static float correctPitch(float pitch_rate) {
     return PITCH_CORRECTION_FACTOR;// + PITCH_RATE_FACTOR * pitch_fraction;
 }
 
-static Vector3f optitrackToScreenRotation(Vector3f pos, CoordinateSystem coordinate_system) {
-    
-    float angle = TRUE_NORTH_TO_CARPET_ANGLE; // radians
-
+static Vector3f rotation(Vector3f pos, float angle, CoordinateSystem coordinate_system) {
     if (coordinate_system == NED) {
         pos.x = pos.x * cos(angle) - pos.y * sin(angle);
         pos.y = pos.x * sin(angle) + pos.y * cos(angle);
@@ -43,19 +40,38 @@ static Vector3f optitrackToScreenRotation(Vector3f pos, CoordinateSystem coordin
     }
 
     return pos;
-} 
+}
+
+static Vector3f screenToOptitrackRotation(Vector3f pos, CoordinateSystem coordinate_system) {
+    pos = rotation(pos, -TRUE_NORTH_TO_CARPET_ANGLE, coordinate_system);
+}
+
+static Vector3f optitrackToScreenRotation(Vector3f pos, CoordinateSystem coordinate_system) {
+    pos = rotation(pos, TRUE_NORTH_TO_CARPET_ANGLE, coordinate_system);
+    return pos;
+}
+
+static float headingOptitrackToScreen(float heading /* radians */) {
+    heading += TRUE_NORTH_TO_CARPET_ANGLE + M_PI;
+    return heading;
+}
+
+static float headingScreenToOptitrack(float heading /* radians */) {
+    heading -= TRUE_NORTH_TO_CARPET_ANGLE + M_PI;
+    return heading;
+}
 
 static DroneState optitrackToScreenState(DroneState state, CoordinateSystem coordinate_system) {
-    // Translate yaw from relative to true north to relative to screen north (up).
-    // Clockwise is positive here.
-    state.optitrack_angle.z += TRUE_NORTH_TO_CARPET_ANGLE + M_PI;
-    state.optitrack_angle.y += 0.0f;//degToRad(4.0f);//degToRad(CAMERA_TILT);
+    // Translate yaw from relative to true north to relative to negative x axis.
+    // In screen space: left = 0, up = 90, right = 180, down = 360.
+    state.optitrack_angle.z = headingOptitrackToScreen(state.optitrack_angle.z);
+    //state.optitrack_angle.y += 0.0f;//degToRad(4.0f);//degToRad(CAMERA_TILT);
 
-    // Offset camera forward and up as it is not on the center of the drone.
-    //float CAM_OFFSET = 0.1;//0.05;
-    //state.optitrack_pos.x += CAM_OFFSET * cos(state.optitrack_angle.z);
-    //state.optitrack_pos.y += CAM_OFFSET * sin(state.optitrack_angle.z);
-    //state.optitrack_pos.z += CAM_OFFSET;
+    // TODO: Consider offseting position due to camera not being on the center of the drone.
+    //float CAM_OFFSET = 0.05; // meters forward of the drone center.
+    //state.optitrack_pos.x += CAM_OFFSET * -cos(state.optitrack_angle.z);
+    //state.optitrack_pos.y += CAM_OFFSET * -sin(state.optitrack_angle.z);
+    //state.optitrack_pos.z += ???;
 
     state.optitrack_pos = optitrackToScreenRotation(state.optitrack_pos, coordinate_system);
     return state;

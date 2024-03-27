@@ -31,7 +31,9 @@ enum navigation_state_t {
   SAFE,
   OBSTACLE_FOUND,
   SEARCH_FOR_SAFE_HEADING,
-  OUT_OF_BOUNDS
+  OUT_OF_BOUNDS,
+  MOVING,
+  IDLE
 };
 
 // define and initialise global variables
@@ -75,20 +77,20 @@ void group_10_avoider_periodic(void)
 
   DroneState state = getDroneState();
 
-  Vector2i drone_grid_pos = getDroneGridPosition(state);
+  Vector2i drone_grid_pos = getObjectGridPosition(state.optitrack_pos.x, state.optitrack_pos.y);
   float drone_heading = state.optitrack_angle.z;
   float best_heading = drone_heading;
   Vector2i best_endpoint = drone_grid_pos;
 
-  Vector2i closest_cell = updateGrid(drone_grid_pos);
+  Vector2i closest_cell = updateGrid(drone_grid_pos, false);
 
 	if (validVectorInt(closest_cell)) {
-		PRINT("Closest probabilities cell: (%i, %i)\n", closest_cell.x, closest_cell.y);
+		//PRINT("Closest probabilities cell: (%i, %i)\n", closest_cell.x, closest_cell.y);
 	} else {
-		PRINT("No close probabilities cell found\n");
+		//PRINT("No close probabilities cell found\n");
 	}
 
-	PRINT("Closest obstacle distance (cells): %.3f\n", closest_obstacle_distance);
+	//PRINT("Closest obstacle distance (cells): %.3f\n", closest_obstacle_distance);
 
   // update our safe confidence using color threshold
   if (closest_obstacle_distance > closest_obstacle_distance_threshold) {
@@ -103,14 +105,62 @@ void group_10_avoider_periodic(void)
   int turns_before_moving = HEADING_COUNT;
   static int turns = 0;
 
-  switch (navigation_state){
+  int goal_x;
+  int goal_y;
+  float dist_x;
+  float dist_y;
+  float dist2;
+  float dist;
+
+  Vector2i goal_grid_pos;
+
+  float dist_before_recheck_heading = 0.1;
+
+  int start_pos_x;
+  int start_pos_y;
+  int current_pos_x;
+  int current_pos_y;
+  float move_dist = 1.0f;
+  float diff;
+
+  switch (navigation_state) {
+    case IDLE:
+        break;
+    case MOVING:
+        //goal_x = waypoint_get_x(WP_GOAL);
+        //goal_y = waypoint_get_y(WP_GOAL);
+        //goal_grid_pos = getObjectGridPosition(goal_x, goal_y);
+        //PRINT("Drone grid pos: %i, %i, Goal grid pos: %i, %i \n", drone_grid_pos.x, drone_grid_pos.y, goal_grid_pos.x, goal_grid_pos.y);
+        
+        current_pos_x = stateGetPositionEnu_i()->x;
+        current_pos_y = stateGetPositionEnu_i()->y;
+        dist_x = start_pos_x - current_pos_x;
+        dist_y = start_pos_y - current_pos_y;
+        dist2 = dist_x * dist_y + dist_y * dist_y;
+        dist = sqrtf(dist2);// * METERS_PER_GRID_CELL.x;
+        diff = move_dist - dist;
+        if (diff > 0) {
+            moveWaypointForward(WP_TRAJECTORY, diff);
+            moveWaypointForward(WP_GOAL, diff);
+        } else {
+            navigation_state = SEARCH_FOR_SAFE_HEADING;
+        }
+        //if (dist < dist_before_recheck_heading) {
+          //waypoint_move_here_2d(WP_GOAL);
+          //waypoint_move_here_2d(WP_TRAJECTORY);
+          //navigation_state = IDLE;
+          //PRINT("Within %.2f m of goal, stopping. \n", dist);
+        //} else {
+        //}
+       // PRINT("Moving toward goal in progress, current distance: %.2f \n", dist);
+      break;
     case SAFE:
       turns = 0;
       // Move waypoint forward
       moveWaypointForward(WP_TRAJECTORY, move_distance);
       if (!InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY))){
         navigation_state = OUT_OF_BOUNDS;
-      } else if (obstacle_free_confidence == 0){
+      } else if (obstacle_free_confidence == 0) {
         navigation_state = OBSTACLE_FOUND;
       } else {
         moveWaypointForward(WP_GOAL, move_distance);
@@ -132,14 +182,39 @@ void group_10_avoider_periodic(void)
       best_heading = getBestHeading(drone_grid_pos, drone_heading, &best_endpoint);
 
       if (best_heading != INVALID_POINT_FLT) {
-        increase_nav_heading(best_heading);
+        set_nav_heading(headingScreenToOptitrack(best_heading));
 
-        moveWaypointForward(WP_TRAJECTORY, move_distance);
+        start_pos_x = stateGetPositionEnu_i()->x;
+        start_pos_y = stateGetPositionEnu_i()->y;
 
-        // make sure we have a couple of good readings before declaring the way safe
-        if (obstacle_free_confidence >= 2){
-          navigation_state = SAFE;
-        }
+        moveWaypointForward(WP_TRAJECTORY, move_dist);
+        moveWaypointForward(WP_GOAL, move_dist);
+
+        // Vector3f endpoint;
+
+        // endpoint.x = best_endpoint.x * METERS_PER_GRID_CELL.x;
+        // endpoint.y = best_endpoint.x * METERS_PER_GRID_CELL.x;
+        // endpoint.z = 1;
+
+        // endpoint = screenToOptitrackRotation(endpoint, NED);
+
+        // struct NedCoor_f ned_coord;
+
+        // ned_coord.x = endpoint.x;
+        // ned_coord.y = endpoint.y;
+        // ned_coord.z = 1;
+
+        // struct EnuCoor_f enu_coord;
+        // ENU_OF_TO_NED(enu_coord, ned_coord);
+
+        // waypoint_move_xy_i(WP_TRAJECTORY, (int)enu_coord.x, (int)enu_coord.y);
+        // waypoint_move_xy_i(WP_GOAL, (int)enu_coord.x, (int)enu_coord.y);
+
+        //moveWaypointForward(WP_TRAJECTORY, 2.0f * move_distance);
+        //moveWaypointForward(WP_GOAL, 2.0f * move_distance);
+
+        navigation_state = MOVING;
+        obstacle_free_confidence = 2;
       } else {
         // If no best heading founds, drone is in crowded area so turn it and try again.
         increase_nav_heading(heading_diff);
@@ -148,7 +223,9 @@ void group_10_avoider_periodic(void)
       // If drone has turns a full 360 degrees and still has not found a safe heading, move it forward slightly and start over.
       if (turns >= turns_before_moving) {
         turns = 0;
-        moveWaypointForward(WP_TRAJECTORY, 0.2 * move_distance);
+        float retry_move_distance = 0.1; // fraction of move_distance.
+        moveWaypointForward(WP_TRAJECTORY, retry_move_distance * move_distance);
+        moveWaypointForward(WP_GOAL, retry_move_distance * move_distance);
       }
       break;
     case OUT_OF_BOUNDS:
@@ -186,7 +263,7 @@ uint8_t increase_nav_heading(float incrementDegrees)
   // set heading, declared in firmwares/rotorcraft/navigation.h
   nav.heading = new_heading;
 
-  PRINT("Increasing heading to %f\n", DegOfRad(new_heading));
+  PRINT("Increased heading to %f\n", DegOfRad(new_heading));
   return false;
 }
 
@@ -223,9 +300,9 @@ uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters)
   // Now determine where to place the waypoint you want to go to
   new_coor->x = stateGetPositionEnu_i()->x + POS_BFP_OF_REAL(sinf(heading) * (distanceMeters));
   new_coor->y = stateGetPositionEnu_i()->y + POS_BFP_OF_REAL(cosf(heading) * (distanceMeters));
-  PRINT("Calculated %f m forward position. x: %f  y: %f based on pos(%f, %f) and heading(%f)\n", distanceMeters,	
-                POS_FLOAT_OF_BFP(new_coor->x), POS_FLOAT_OF_BFP(new_coor->y),
-                stateGetPositionEnu_f()->x, stateGetPositionEnu_f()->y, DegOfRad(heading));
+  //PRINT("Calculated %f m forward position. x: %f  y: %f based on pos(%f, %f) and heading(%f)\n", distanceMeters,	
+  //              POS_FLOAT_OF_BFP(new_coor->x), POS_FLOAT_OF_BFP(new_coor->y),
+  //              stateGetPositionEnu_f()->x, stateGetPositionEnu_f()->y, DegOfRad(heading));
   return false;
 }
 
@@ -234,8 +311,8 @@ uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters)
  */
 uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i *new_coor)
 {
-  PRINT("Moving waypoint %d to x:%f y:%f\n", waypoint, POS_FLOAT_OF_BFP(new_coor->x),
-                POS_FLOAT_OF_BFP(new_coor->y));
+  //PRINT("Moving waypoint %d to x:%f y:%f\n", waypoint, POS_FLOAT_OF_BFP(new_coor->x),
+  //              POS_FLOAT_OF_BFP(new_coor->y));
   waypoint_move_xy_i(waypoint, new_coor->x, new_coor->y);
   return false;
 }
@@ -248,10 +325,10 @@ uint8_t chooseRandomIncrementAvoidance(void)
   // Randomly choose CW or CCW avoiding direction
   if (rand() % 2 == 0) {
     heading_diff = HEADING_INCREMENT;
-    PRINT("Set avoidance increment to: %f\n", heading_diff);
+    //PRINT("Set avoidance increment to: %f\n", heading_diff);
   } else {
     heading_diff = -HEADING_INCREMENT;
-    PRINT("Set avoidance increment to: %f\n", heading_diff);
+    //PRINT("Set avoidance increment to: %f\n", heading_diff);
   }
   return false;
 }
