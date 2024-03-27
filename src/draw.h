@@ -1,11 +1,14 @@
-#pragma once
+#ifndef GROUP_10_DRAW_H
+#define GROUP_10_DRAW_H
 
-#ifndef IN_PAPARAZZI
+#ifdef GROUP_10_OPENCV
 
 #include <opencv2/opencv.hpp>
 
 #include "types.h"
 #include "utility.h"
+
+#ifndef IN_PAPARAZZI
 
 void initDrawingWindows() {
     cv::namedWindow("Image");
@@ -30,6 +33,8 @@ void initDrawingWindows() {
 void destroyDrawingWindows() {
     cv::destroyAllWindows();
 }
+
+#endif
 
 void drawObstacles(cv::Mat& out_grid, const std::vector<Obstacle>& obstacles) {
     int obstacle_radius = 5; // pixels
@@ -87,6 +92,8 @@ void drawDrone(cv::Mat& out_grid, const DroneState& state) {
     cv::circle(out_grid, d, drone_radius, drone_color, -1);
 }
 
+#ifndef IN_PAPARAZZI
+
 void drawGrid(
     std::vector<cv::Point>& grid_points,
     const std::vector<cv::Scalar>& colors,
@@ -101,5 +108,9 @@ void drawGrid(
     drawDrone(grid, state);
     cv::imshow("Grid", grid);
 }
+
+#endif
+
+#endif
 
 #endif

@@ -192,16 +192,14 @@ cv::Mat extractLargestContour(const cv::Mat& image, float* current_horizon_y, st
 	int horizon_reset_threshold = 5;
 	static int loops_with_unreset_horizon = 0;
 
-	std::vector<std::vector<cv::Point>> floor_contours;
-	std::vector<std::vector<cv::Point>> above_contours;
-	int highest_y_coordinate = 1000000;
-	static int horizon_y = 1000000;
+	int highest_y_coordinate = INT_MAX;
+	static int horizon_y = INT_MAX;
 	if (largest_contours.size() > 0) {
 		for (size_t j = 0; j < largest_contours[0].size(); j++)
 		{
 			if (largest_contours[0][j].y < highest_y_coordinate) {
 				highest_y_coordinate = largest_contours[0][j].y;
-				if (horizon_y == 1000000) {
+				if (horizon_y == INT_MAX) {
 					horizon_y = highest_y_coordinate;
 				}
 				else {
@@ -249,12 +247,23 @@ cv::Mat extractLargestContour(const cv::Mat& image, float* current_horizon_y, st
 
 	// Create output image (same size and type as input)
 	cv::Mat filtered_image = cv::Mat::zeros(image.size(), CV_8UC1);
+#ifndef IN_PAPARAZZI
+	cv::Mat contour_image = cv::Mat::zeros(image.size(), CV_8UC1);
+#endif
+
 	if (floor_cns.size() > 0) {
 		std::vector<std::vector<cv::Point>> cns = { floor_cns[0] };
 
 		cv::drawContours(filtered_image, cns, -1, cv::Scalar(255), cv::FILLED);
+#ifndef IN_PAPARAZZI
+		cv::drawContours(contour_image, contours, -1, cv::Scalar(255), 1, cv::LINE_8);
+#endif
 	}
+
+#ifndef IN_PAPARAZZI
+	cv::imshow("Intermediate1", contour_image);
 	//cv::drawContours(filtered_image, above_cns, -1, cv::Scalar(255), cv::FILLED);
+#endif
 
 	// Draw horizon line.
 	bool draw_horizon = true;
@@ -526,6 +535,7 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 	float horizon_y = 0;
 
 	cv::Mat filteredFloor = extractLargestContour(isolatedFloor, &horizon_y, floor_cns, above_cns);
+
 	//cv::Mat res = detectHarrisCorners(filteredFloor, cns);
 
 	// Clone the input image for annotation to preserve the original
@@ -537,20 +547,6 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 	// Assuming the floor border is detected from the bottom of the image
 	int img_height = inputImage.rows;
 	int img_width = inputImage.cols;
-
-	
-	// Kernel for morphological operations
-#ifndef IN_PAPARAZZI
-	//int kernelSize = 5;
-	//cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernelSize, kernelSize));
-	//cv::dilate(dilated, dilated, kernel, cv::Point(-1, -1), 2);
-
-	cv::Mat processedMask;
-	//cv::Canny(filteredFloor, processedMask, 100, 200);
-	// Process the mask to detect edges and dilate
-
-	//cv::imshow("Intermediate1", processedMask);
-#endif
 
 	std::vector<cv::Point2f> obstacle_base_points;
 	std::vector<cv::Point2f> potential_obstacle_points;

@@ -11,7 +11,9 @@
 
 #include "drone.h"
 
+#ifndef PRINT
 #define PRINT(string,...) fprintf(stderr, "[detector->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
+#endif
 
 #ifndef GROUP_10_OBSTACLE_DETECTOR_FPS
 ///< Default FPS (zero means run at camera fps)
@@ -25,12 +27,11 @@
 struct image_t *obstacle_detector(struct image_t *img, uint8_t camera_id);
 
 struct image_t *obstacle_detector(struct image_t *img, uint8_t camera_id __attribute__((unused))) {
-  //PRINT("Got image from drone (width: %d, height: %d) \n", img->w, img->h);
 #ifdef GROUP_10_OPENCV
   if (img->type == IMAGE_YUV422) {
     DroneState state = getDroneState();
     // Call OpenCV (C++ from paparazzi C function)
-    opencv_wrapper((char*)img->buf, img->w, img->h, state);
+    parseImage((char*)img->buf, img->w, img->h, state);
   }
 #endif
   return img;
@@ -61,7 +62,7 @@ static void addTestObstacles() {
 
     if (!validVectorInt(obstacle_grid_pos)) continue;
 
-    PRINT("ADDING OBSTACLE WITH GRID POS: (%i, %i)\n", obstacle_grid_pos.x, obstacle_grid_pos.y);
+    //PRINT("ADDING OBSTACLE WITH GRID POS: (%i, %i)\n", obstacle_grid_pos.x, obstacle_grid_pos.y);
 
     AbiSendMsgGROUP_10_OBSTACLE_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, obstacle_grid_pos.x, obstacle_grid_pos.y);
   }
@@ -74,9 +75,9 @@ void group_10_obstacle_detector_init(void) {
 }
 
 void group_10_obstacle_detector_periodic(void) {
-  static bool added_obstacles = false;
-  if (!added_obstacles) {
-    addTestObstacles();
-    added_obstacles = true;
-  }
+  // static bool added_obstacles = false;
+  // if (!added_obstacles) {
+  //   addTestObstacles();
+  //   added_obstacles = true;
+  // }
 }

@@ -15,7 +15,9 @@
 #define NAV_C // needed to get the nav functions like Inside...
 #include "generated/flight_plan.h"
 
+#ifndef PRINT
 #define PRINT(string,...) fprintf(stderr, "[avoider->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
+#endif
 
 float obstacle_x = -FLT_MAX;
 float obstacle_y = -FLT_MAX;
@@ -263,7 +265,7 @@ uint8_t increase_nav_heading(float incrementDegrees)
   // set heading, declared in firmwares/rotorcraft/navigation.h
   nav.heading = new_heading;
 
-  PRINT("Increased heading to %f\n", DegOfRad(new_heading));
+  //PRINT("Increased heading to %f\n", DegOfRad(new_heading));
   return false;
 }
 
@@ -275,7 +277,7 @@ uint8_t set_nav_heading(float new_heading)
   // set heading, declared in firmwares/rotorcraft/navigation.h
   nav.heading = new_heading;
 
-  PRINT("Setting nav heading to %f\n", DegOfRad(new_heading));
+  //PRINT("Setting nav heading to %f\n", DegOfRad(new_heading));
   return false;
 }
 

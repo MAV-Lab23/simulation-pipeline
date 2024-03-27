@@ -142,7 +142,6 @@ void loop(cv::Mat& in_img, DroneState& state, const std::vector<Obstacle>& obsta
     }
 
     for (size_t i = 0; i < u_grid_points.size(); i++) {
-        // DONT FORGET TO COMMENT THIS BACK IN
         cv::circle(grid, { (int)u_grid_points[i].x, (int)u_grid_points[i].y }, point_radius, cv::Scalar(255, 128, 128), -1);
     }
 
@@ -230,7 +229,8 @@ int main() {
         // Directory path relative to src directory.
         // 20240326-081515 // 1.25 zoom
         // 20240324-020231 // 1.0 zoom
-        const char* drone_images_directory = "../images/20240324-020231/";
+        // 20240327-230719 // 1.0 zoom
+        const char* drone_images_directory = "../images/20240327-230719/";
         auto pair = getDroneDataNew(drone_images_directory, NED);
         drone_data = pair.first;
         obstacles = pair.second;

@@ -44,6 +44,7 @@ static Vector3f rotation(Vector3f pos, float angle, CoordinateSystem coordinate_
 
 static Vector3f screenToOptitrackRotation(Vector3f pos, CoordinateSystem coordinate_system) {
     pos = rotation(pos, -TRUE_NORTH_TO_CARPET_ANGLE, coordinate_system);
+    return pos;
 }
 
 static Vector3f optitrackToScreenRotation(Vector3f pos, CoordinateSystem coordinate_system) {
