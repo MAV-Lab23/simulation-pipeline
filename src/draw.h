@@ -9,22 +9,22 @@
 
 void initDrawingWindows() {
     cv::namedWindow("Image");
-    cv::namedWindow("Final");
     cv::namedWindow("Floor");
     cv::namedWindow("Filtered");
     cv::namedWindow("Grid");
     cv::namedWindow("Intermediate1");
     cv::namedWindow("Intermediate2");
-    cv::namedWindow("Intermediate3");
+    cv::namedWindow("Undistorted");
+    cv::namedWindow("Final");
 
     cv::moveWindow("Image", 0, 0);
     cv::moveWindow("Final", 0, 275);
     cv::moveWindow("Floor", 530, 0);
-    cv::moveWindow("Filtered", 530, 275);
+    cv::moveWindow("Undistorted", 530, 275);
     cv::moveWindow("Grid", 530 * 2, 0);
     cv::moveWindow("Intermediate1", 0, 275 * 2 + 9);
     cv::moveWindow("Intermediate2", 530, 275 * 2 + 9);
-    cv::moveWindow("Intermediate3", 530 * 2, 275 * 2 + 9);
+    cv::moveWindow("Filtered", 530 * 2, 275 * 2 + 9);
 }
 
 void destroyDrawingWindows() {
@@ -38,7 +38,14 @@ void drawObstacles(cv::Mat& out_grid, const std::vector<Obstacle>& obstacles) {
     {
         const Obstacle& o = obstacles[i];
 
-        Vector2i obstacle_grid_pos = optitrackCoordinateToGrid({ o.optitrack_pos.x, o.optitrack_pos.y });
+        Vector2f pos;
+        pos.x = normalizeValue(o.optitrack_pos.x, -(ARENA_SIZE.x + 2) / 2.0, (ARENA_SIZE.x + 2) / 2.0);
+        pos.y = normalizeValue(o.optitrack_pos.y, -(ARENA_SIZE.y + 2) / 2.0, (ARENA_SIZE.y + 2) / 2.0);
+
+        Vector2i obstacle_grid_pos = { (int)(pos.x * GRID_SIZE.x), (int)(pos.y * GRID_SIZE.y) };
+
+
+
 
         if (!validVector(obstacle_grid_pos)) continue;
 
@@ -69,6 +76,7 @@ void drawCarpet(cv::Mat& out_grid) {
 // Grid heading in radians.
 void drawDrone(cv::Mat& out_grid, const DroneState& state) {
     Vector2i grid_pos = optitrackCoordinateToGrid({ state.optitrack_pos.x, state.optitrack_pos.y });
+    //Vector2i grid_pos_cam = optitrackCoordinateToGrid({ state.optitrack_pos.x + x_cam, state.optitrack_pos.y + y_cam });
 
     // If the drone is outside of the grid boundaries do not draw it.
     if (!validVector(grid_pos)) return;
@@ -89,8 +97,10 @@ void drawDrone(cv::Mat& out_grid, const DroneState& state) {
     cv::Scalar drone_color = { 0, 0, 0 };
 
     cv::Point d = { grid_pos.x, grid_pos.y };
+    //cv::Point c = { grid_pos_cam.x, grid_pos_cam.y };
 
     cv::circle(out_grid, d, drone_radius, drone_color, -1);
+    //cv::circle(out_grid, c, drone_radius, cv::Scalar(128), -1);
     cv::line(out_grid, d, end_pos, cv::Scalar(128), 1);
 }
 
