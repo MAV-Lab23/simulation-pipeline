@@ -6,8 +6,6 @@
 #include "constants.h"
 #include "types.h"
 
-#define M_PI 3.14159265358979323846
-
 #ifndef MAX
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
@@ -20,16 +18,8 @@
 
 #endif
 
-static bool validVector(const Vector2i vector) {
-	return vector.x != INVALID_POINT && vector.y != INVALID_POINT; 
-}
-
-static bool validVector(const Vector2f vector) {
-	return vector.x != INVALID_POINT_FLT && vector.y != INVALID_POINT_FLT; 
-}
-
 // Normalize the value to the 0-1 range
-static float normalizeValue(float value, float min_value, float max_value) {
+static float normalizeValue(const float value, const float min_value, const float max_value) {
 	if (min_value == max_value) {
 		return 0.5;
 	}
@@ -42,11 +32,58 @@ static float normalizeValue(float value, float min_value, float max_value) {
 	return val;
 }
 
-// Returns { INVALID_POINT, INVALID_POINT } if coordinate is outside of grid.
-static Vector2i optitrackCoordinateToGrid(Vector2f pos) {
+void getCarpetCorners(Vector2i* out_top_left, Vector2i* out_bottom_right) {
+    // Calculate carpet start and end points.
+    out_top_left->x = (ARENA_SIZE.x - CARPET_SIZE.x) / (2 * ARENA_SIZE.x) * GRID_SIZE.x;
+    out_top_left->y = (ARENA_SIZE.y - CARPET_SIZE.y) / (2 * ARENA_SIZE.y) * GRID_SIZE.y;
+    out_bottom_right->x = out_top_left->x + CARPET_SIZE.x / ARENA_SIZE.x * GRID_SIZE.x;
+    out_bottom_right->y = out_top_left->y + CARPET_SIZE.y / ARENA_SIZE.y * GRID_SIZE.y;
+}
 
-	pos.x = normalizeValue(pos.x, -ARENA_SIZE.x / 2.0, ARENA_SIZE.x / 2.0);
-	pos.y = normalizeValue(pos.y, -ARENA_SIZE.y / 2.0, ARENA_SIZE.y / 2.0);
+static Vector2i getObstacleGridPos(const Vector3f rotated_obstacle_pos) {
+	float adjust = 2.0f;
+#ifdef IN_PAPARAZZI
+	adjust = 0.0f;
+#endif
+
+	Vector2f pos;
+	pos.x = normalizeValue(rotated_obstacle_pos.x, -(ARENA_SIZE.x + adjust) / 2.0f, (ARENA_SIZE.x + adjust) / 2.0f);
+	pos.y = normalizeValue(rotated_obstacle_pos.y, -(ARENA_SIZE.y + adjust) / 2.0f, (ARENA_SIZE.y + adjust) / 2.0f);
+
+	Vector2i obstacle_grid_pos = { (int)(pos.x * GRID_SIZE.x), (int)(pos.y * GRID_SIZE.y) };
+
+	return obstacle_grid_pos;
+}
+
+// Transform obstacle points to grid coordinate frame.
+static Vector3f rotateObstaclePos(const Vector3f optitrack_pos) {
+	float angle = M_PI / 2 - TRUE_NORTH_TO_CARPET_ANGLE;
+
+	Vector3f pos;
+
+	pos.x = -(optitrack_pos.x * cos(angle) - optitrack_pos.y * sin(angle));
+	pos.y =   optitrack_pos.x * sin(angle) + optitrack_pos.y * cos(angle);
+	// TODO: Check if this assumption is correct or if z-axis convention is changed.
+	pos.z = optitrack_pos.z;
+	
+	return pos;
+}
+
+static bool validVectorInt(const Vector2i vector) {
+	return vector.x != INVALID_POINT && vector.y != INVALID_POINT; 
+}
+
+static bool validVectorFloat(const Vector2f vector) {
+	return vector.x != INVALID_POINT_FLT && vector.y != INVALID_POINT_FLT; 
+}
+
+// Returns { INVALID_POINT, INVALID_POINT } if coordinate is outside of grid.
+static Vector2i optitrackCoordinateToGrid(const Vector2f opti_pos) {
+
+	Vector2f pos;
+
+	pos.x = normalizeValue(opti_pos.x, -ARENA_SIZE.x / 2.0f, ARENA_SIZE.x / 2.0f);
+	pos.y = normalizeValue(opti_pos.y, -ARENA_SIZE.y / 2.0f, ARENA_SIZE.y / 2.0f);
 
 	Vector2i grid_pos = { (int)(pos.x * GRID_SIZE.x), (int)(pos.y * GRID_SIZE.y) };
 
@@ -70,81 +107,9 @@ static float radToDeg(float radians) {
 	return 180.0f / M_PI * radians;
 }
 
-/*
-float floor(float value) {
-	float tmp = (float)(int)value;
-	return (tmp != value) ? (tmp - 1.0f) : tmp;
-}
-*/
-
-// I know I could use a template here but I don't wanna add every possible condition for T.
-
 static float clamp(float d, float min, float max) {
 	const float t = d < min ? min : d;
 	return t > max ? max : t;
-}
-
-static int flatten(const Vector2i coordinate) {
-	return GRID_SIZE.x * coordinate.y + coordinate.x;
-}
-
-static Vector2i worldToGrid(const Vector2i pos) {
-	Vector2i transformed_pos = {
-		(int)floor(clamp(pos.x, 0, GRID_DIMENSIONS.x) / TILE_SIZE),
-		(int)floor(clamp(pos.y, 0, GRID_DIMENSIONS.y) / TILE_SIZE)
-	};
-	return transformed_pos;
-}
-
-// TODO: Clean these up using casting
-
-// This allocates memory. Clean up after yourself!
-static float* createEmptyFloatGrid() {
-	float* out_grid = (float*)malloc(GRID_LENGTH * sizeof(float));
-	for (int j = 0; j < GRID_SIZE.y; j++)
-	{
-		int offset = j * GRID_SIZE.x;
-		for (int i = 0; i < GRID_SIZE.x; i++)
-		{
-			out_grid[i + offset] = 0.0f;
-		}
-	}
-	return out_grid;
-}
-
-static int* createEmptyIntGrid() {
-	int* out_grid = (int*)malloc(GRID_LENGTH * sizeof(int));
-	for (int j = 0; j < GRID_SIZE.y; j++)
-	{
-		int offset = j * GRID_SIZE.x;
-		for (int i = 0; i < GRID_SIZE.x; i++)
-		{
-			out_grid[i + offset] = 0;
-		}
-	}
-	return out_grid;
-}
-
-static void clearFloatGrid(float* out_grid) {
-	for (int j = 0; j < GRID_SIZE.y; j++)
-	{
-		int offset = j * GRID_SIZE.x;
-		for (int i = 0; i < GRID_SIZE.x; i++)
-		{
-			out_grid[i + offset] = 0.0f;
-		}
-	}
-}
-
-static void clearIntGrid(int* out_grid) {
-	for (int j = 0; j < GRID_SIZE.y; j++)
-	{
-		int offset = j * GRID_SIZE.x;
-		for (int i = 0; i < GRID_SIZE.x; i++)
-		{
-			out_grid[i + offset] = 0;
-		}
-	}
 }
 
 #ifndef IN_PAPARAZZI

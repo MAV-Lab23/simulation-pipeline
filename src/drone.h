@@ -223,7 +223,7 @@ std::pair<std::vector<std::pair<cv::Mat, DroneState>>, std::vector<Obstacle>> ge
 
             Obstacle obstacle;
 
-            // TODO: Currently assuming all obstacles start from the ground and extend infinitely upward.
+            // Currently assuming all obstacles in CSV start from the ground and extend infinitely upward.
             float OBSTACLE_Z = 0.0f;
 
             obstacle.optitrack_pos = { std::stof(o_row[1]), std::stof(o_row[2]), OBSTACLE_Z };
@@ -231,14 +231,7 @@ std::pair<std::vector<std::pair<cv::Mat, DroneState>>, std::vector<Obstacle>> ge
 
             // ENU is default if you are reading positions from Gazebo.
             //obstacle.optitrack_pos = optitrackToScreenRotation(obstacle.optitrack_pos, ENU);
-
-            float angle = M_PI / 2 - TRUE_NORTH_TO_CARPET_ANGLE;
-
-            obstacle.optitrack_pos = {
-              -(obstacle.optitrack_pos.x * cos(angle) - obstacle.optitrack_pos.y * sin(angle)),
-                obstacle.optitrack_pos.x * sin(angle) + obstacle.optitrack_pos.y * cos(angle),
-                OBSTACLE_Z,
-            };
+            obstacle.optitrack_pos = rotateObstaclePos(obstacle.optitrack_pos);
 
             obstacles.push_back(obstacle);
         }
