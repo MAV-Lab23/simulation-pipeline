@@ -1,35 +1,14 @@
+// DO NOT FORGET TO SET THIS WHEN TESTING WITH REAL WORLD DATA 
 #define IN_REAL_LIFE 0 // 0 = false, 1 = true 
+
+#define GROUP_10_OPENCV 1
 
 #include "draw.h"
 #include "drone.h"
 #include "utility.h"
 #include "constants.h"
 #include "image_processing.h"
-
-int OBSTACLE_POINT_MAX_LIFETIME = 200; // frames of periodic function
-
-cv::Mat timers;
-cv::Mat probabilities;
-
-void setGridProbability(const cv::Point& point, float probability) {
-	//assert(index >= 0 && index < GRID_LENGTH);
-	probabilities.at<float>(point.x, point.y) = clamp(probability, 0.0f, 1.0f);
-}
-
-float getGridProbability(const cv::Point& point) {
-	//assert(index >= 0 && index < GRID_LENGTH);
-	return probabilities.at<float>(point.x, point.y);
-}
-
-void setTimer(const cv::Point& point, int value) {
-	//assert(index >= 0 && index < GRID_LENGTH);
-	timers.at<int>(point.x, point.y) = clamp(value, 0, OBSTACLE_POINT_MAX_LIFETIME);
-}
-
-int getTimer(const cv::Point& point) {
-	//assert(index >= 0 && index < GRID_LENGTH);
-	return timers.at<int>(point.x, point.y);
-}
+#include "navigation.h"
 
 void loop(cv::Mat& in_img, DroneState& state, const std::vector<Obstacle>& obstacles) {
     // Process a copy of the image so the original can be displayed later.
@@ -158,16 +137,15 @@ void loop(cv::Mat& in_img, DroneState& state, const std::vector<Obstacle>& obsta
     
     drawDrone(grid, state);
 
-    cv::Mat stored_grid;
-    grid.copyTo(stored_grid);
-
     for (size_t i = 0; i < ref_grid_points.size(); i++) {
         cv::circle(grid, { (int)ref_grid_points[i].x, (int)ref_grid_points[i].y }, point_radius, ref_colors[i], -1);
     }
 
     for (size_t i = 0; i < u_grid_points.size(); i++) {
+        // DONT FORGET TO COMMENT THIS BACK IN
         cv::circle(grid, { (int)u_grid_points[i].x, (int)u_grid_points[i].y }, point_radius, cv::Scalar(255, 128, 128), -1);
     }
+
     //for (size_t i = 0; i < d_grid_points.size(); i++) {
         //cv::circle(grid, { (int)d_grid_points[i].x, (int)d_grid_points[i].y }, point_radius, cv::Scalar(128, 128, 128), -1);
     //}
@@ -175,48 +153,32 @@ void loop(cv::Mat& in_img, DroneState& state, const std::vector<Obstacle>& obsta
     // Add identified points to grid and set their timers.
     for (size_t i = 0; i < u_grid_points.size(); i++)
     {
-        setGridProbability(u_grid_points[i], 1.0);
-        setTimer(u_grid_points[i], OBSTACLE_POINT_MAX_LIFETIME);
+	    int index = u_grid_points[i].x + GRID_SIZE.x * u_grid_points[i].y;
+        addGridElement(index);
     }
 
-    // Update timers and grids that become empty
+    Vector2i drone_grid_pos = getDroneGridPosition(state);
+    Vector2i closest_cell = updateGrid(drone_grid_pos);
+    Vector2i best_endpoint = { 0, 0 };
+
+    float best_heading = getBestHeading(grid, drone_grid_pos, state.optitrack_angle.z, &best_endpoint);
+
+    //drawHeading(grid, drone_grid_pos, state.optitrack_angle.z + degToRad(45), 1, cv::Scalar(128, 128, 128), 1);
+
 	for (int j = 0; j < GRID_SIZE.y; j++)
 	{
-		for (int i = 0; i < GRID_SIZE.x; i++)
-		{
-			int timer = getTimer({ i, j }) - 1;
-			// TODO: Consider scaling probability from 1 to 0 based on (timer / OBSTACLE_POINT_MAX_LIFETIME).
-			if (timer <= 0) {
-				setGridProbability({ i, j }, 0);
-			}
-			// Timer is clamped to minimum 0 inside setTimer
-			setTimer({ i, j }, timer);
-		}
-	}
-
-
-    // Update timers and grids that become empty
-	for (int j = 0; j < GRID_SIZE.y; j++)
-	{
-		for (int i = 0; i < GRID_SIZE.x; i++)
-		{
-			int timer = getTimer({ i, j }) - 1;
-			// TODO: Consider scaling probability from 1 to 0 based on (timer / OBSTACLE_POINT_MAX_LIFETIME).
-			if (timer <= 0) {
-				setGridProbability({ i, j }, 0);
-			} else {
-                cv::circle(stored_grid, cv::Point(i,j), 5, cv::Scalar(0, 0, 255), -1);
-                //stored_grid.at<cv::Vec3b>(cv::Point(i,j)) = cv::Vec3b(0, 0, 255);
+		int offset = j * GRID_SIZE.x;
+        for (int i = 0; i < GRID_SIZE.x; i++)
+        {
+			int index = i + offset;
+			int timer = getTimer(index);
+            if (timer > 0) {
+                cv::circle(grid, cv::Point(i, j), 1, cv::Scalar(0, 0, 255), -1);
             }
-			// Timer is clamped to minimum 0 inside setTimer
-			setTimer({ i, j }, timer);
-		}
+        }
 	}
 
-    //probabilities.copyTo(prev_probabilities);
-
-    cv::imshow("Grid", stored_grid);
-
+    cv::imshow("Grid", grid);
 
     for (size_t i = 0; i < undistorted_ref_points.size(); i++) {
         cv::circle(undistorted, { (int)undistorted_ref_points[i].x, (int)undistorted_ref_points[i].y }, point_radius, cv::Scalar(255, 0, 0), -1);
@@ -234,8 +196,6 @@ void loop(cv::Mat& in_img, DroneState& state, const std::vector<Obstacle>& obsta
         cv::circle(original_img, {(int)points[i].x, (int)points[i].y}, point_radius, cv::Scalar(255, 0, 0), -1);
     }
 
-    //cv::imshow("Grid", grid);
-
     // Display original and final images.
     cv::imshow("Image", original_img);
     cv::imshow("Final", in_img);
@@ -251,9 +211,6 @@ void loop(cv::Mat& in_img, DroneState& state, const std::vector<Obstacle>& obsta
 int main() {
 
     initDrawingWindows();
-
-    timers = cv::Mat::zeros(GRID_SIZE.y, GRID_SIZE.x, CV_32S);
-    probabilities = cv::Mat::zeros(GRID_SIZE.y, GRID_SIZE.x, CV_32F);
 
     bool old_data_files = false;
 
@@ -273,7 +230,7 @@ int main() {
         // Directory path relative to src directory.
         // 20240326-081515 // 1.25 zoom
         // 20240324-020231 // 1.0 zoom
-        const char* drone_images_directory = "../images/20240326-081515/";
+        const char* drone_images_directory = "../images/20240324-020231/";
         auto pair = getDroneDataNew(drone_images_directory, NED);
         drone_data = pair.first;
         obstacles = pair.second;
