@@ -120,13 +120,25 @@ void group_10_avoider_periodic(void)
   int start_pos_y;
   int current_pos_x;
   int current_pos_y;
-  float move_dist = 1.0f;
+  float move_dist = .3f;
   float diff;
 
   switch (navigation_state) {
     case IDLE:
         break;
-    case MOVING:
+    case DECISION:
+      //is area in front free
+      //yes -> move forward, stay in decision state
+      //no -> increase nav heading
+
+
+
+      moveWaypointForward(WP_TRAJECTORY, diff);
+
+
+
+      break;
+    case MOVE_FORWARD
         //goal_x = waypoint_get_x(WP_GOAL);
         //goal_y = waypoint_get_y(WP_GOAL);
         //goal_grid_pos = getObjectGridPosition(goal_x, goal_y);
@@ -154,7 +166,7 @@ void group_10_avoider_periodic(void)
         //}
        // PRINT("Moving toward goal in progress, current distance: %.2f \n", dist);
       break;
-    case SAFE:
+    case MOVE_FORWARD:
       turns = 0;
       // Move waypoint forward
       moveWaypointForward(WP_TRAJECTORY, move_distance);
@@ -167,7 +179,7 @@ void group_10_avoider_periodic(void)
       }
 
       break;
-    case OBSTACLE_FOUND:
+    case ROTATE:
       // stop
       waypoint_move_here_2d(WP_GOAL);
       waypoint_move_here_2d(WP_TRAJECTORY);
