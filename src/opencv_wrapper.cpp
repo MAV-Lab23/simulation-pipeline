@@ -20,7 +20,7 @@ int opencv_wrapper(char *img, int width, int height, const DroneState state) {
   // TODO: Fix this. Somehow processImageForObjects or getGridPoints is returning an empty array.
   // I suspect it has something to do with the format of M being incorrect (should be BGR).
   std::vector<cv::Point2f> points = processImageForObjects(M);
-  std::vector<cv::Point> grid_points = getGridPoints(M.size(), state, points, true, true, true);
+  std::vector<cv::Point> grid_points = getGridPoints(state, points, M.size(), true, true, true);
 
   for (size_t i = 0; i < grid_points.size(); ++i) {
     // TODO: Check that this works from a cpp file.

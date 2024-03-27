@@ -24,20 +24,29 @@ static bool validVector(const Vector2i vector) {
 	return vector.x != INVALID_POINT && vector.y != INVALID_POINT; 
 }
 
+static bool validVector(const Vector2f vector) {
+	return vector.x != INVALID_POINT_FLT && vector.y != INVALID_POINT_FLT; 
+}
+
 // Normalize the value to the 0-1 range
 static float normalizeValue(float value, float min_value, float max_value) {
 	if (min_value == max_value) {
 		return 0.5;
 	}
 
-	return (value - min_value) / (max_value - min_value);
+	float val = (value - min_value) / (max_value - min_value);
+
+    //assert(val >= 0.0 && val >= 0.0);
+    //assert(val <= 1.0 && val <= 1.0);
+
+	return val;
 }
 
 // Returns { INVALID_POINT, INVALID_POINT } if coordinate is outside of grid.
 static Vector2i optitrackCoordinateToGrid(Vector2f pos) {
 
-	pos.x = normalizeValue(pos.x, -ARENA_SIZE.x / 2, ARENA_SIZE.x / 2);
-	pos.y = normalizeValue(pos.y, -ARENA_SIZE.y / 2, ARENA_SIZE.y / 2);
+	pos.x = normalizeValue(pos.x, -ARENA_SIZE.x / 2.0, ARENA_SIZE.x / 2.0);
+	pos.y = normalizeValue(pos.y, -ARENA_SIZE.y / 2.0, ARENA_SIZE.y / 2.0);
 
 	Vector2i grid_pos = { (int)(pos.x * GRID_SIZE.x), (int)(pos.y * GRID_SIZE.y) };
 
