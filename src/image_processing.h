@@ -1,6 +1,8 @@
 #ifndef GROUP_10_IMAGE_PROCESSING_H
 #define GROUP_10_IMAGE_PROCESSING_H
 
+#ifdef GROUP_10_OPENCV
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -13,12 +15,6 @@
 #include "types.h"
 #include "constants.h"
 #include "utility.h"
-
-#ifdef IN_PAPARAZZI
-#define PAPARAZZI_PRINT(string,...) fprintf(stderr, "[image_processing->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
-#else
-#define PAPARAZZI_PRINT(string,...)
-#endif
 
 using Contour = std::vector<cv::Point>;
 
@@ -559,8 +555,6 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 	std::vector<cv::Point2f> obstacle_base_points;
 	std::vector<cv::Point2f> potential_obstacle_points;
 
-	//PAPARAZZI_PRINT("FOUND %d CONTOURS", floor_cns.size());
-
 	if (floor_cns.size() > 0) {
 #ifndef IN_PAPARAZZI
 		cv::Mat drawing = cv::Mat::zeros(contour_edges.size(), CV_8UC1);
@@ -770,11 +764,11 @@ std::vector<cv::Point> getGridPoints(
 		}
         Vector2f optitrack_point = getGridPosition(check_points[i], corrected, correct_longitude);
 
-		if (!validVector(optitrack_point)) continue;
+		if (!validVectorFloat(optitrack_point)) continue;
 
         Vector2i grid_point = optitrackCoordinateToGrid(optitrack_point);
 
-        if (!validVector(grid_point)) continue;
+        if (!validVectorInt(grid_point)) continue;
 
         grid_points.emplace_back(grid_point.x, grid_point.y);
     }
@@ -825,5 +819,7 @@ std::vector<cv::Point2f> opticalFlow(const cv::Mat& frame, const std::vector<cv:
 	return good_new;
 }
 */
+
+#endif
 
 #endif
