@@ -495,8 +495,10 @@ std::vector<std::vector<cv::Point2f>> groupPoints(const std::vector<cv::Point2f>
   std::unordered_map<int, std::vector<cv::Point2f>> clusters;
   for (size_t i = 0; i < points.size(); ++i) {
     bool found_cluster = false;
-    for (const auto& [cluster_id, cluster] : clusters) {
-      for (const auto& other_point : cluster) {
+    for (const std::pair<int, std::vector<cv::Point2f>>& pair : clusters) {
+	  int cluster_id = pair.first;
+	  const std::vector<cv::Point2f>& cluster = pair.second;
+      for (const cv::Point2f& other_point : cluster) {
         double dist = std::sqrt(std::pow(points[i].x - other_point.x, 2) + std::pow(points[i].y - other_point.y, 2));
         if (dist <= distance) {
           clusters[cluster_id].push_back(points[i]);
@@ -513,8 +515,9 @@ std::vector<std::vector<cv::Point2f>> groupPoints(const std::vector<cv::Point2f>
     }
   }
   std::vector<std::vector<cv::Point2f>> result;
-  for (const auto& [_, cluster] : clusters) {
-    result.push_back(cluster);
+  for (const std::pair<int, std::vector<cv::Point2f>>& pair : clusters) {
+	// Save cluster
+    result.push_back(pair.second);
   }
   return result;
 }
@@ -601,7 +604,7 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 
 		hull.push_back(hull[0]);
 
-		for (auto& pointC : floor_cns[0]) {
+		for (cv::Point& pointC : floor_cns[0]) {
 			// Shortest distance of point to a non edge hull line.
 			double shortest_hull_line_distance = DBL_MAX;
 	

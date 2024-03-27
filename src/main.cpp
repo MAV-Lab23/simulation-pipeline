@@ -231,13 +231,14 @@ int main() {
         // 20240324-020231 // 1.0 zoom
         // 20240327-230719 // 1.0 zoom
         const char* drone_images_directory = "../images/20240327-230719/";
-        auto pair = getDroneDataNew(drone_images_directory, NED);
+        std::pair<std::vector<std::pair<cv::Mat, DroneState>>, std::vector<Obstacle>> pair = getDroneDataNew(drone_images_directory, NED);
         drone_data = pair.first;
         obstacles = pair.second;
     }
 
-    for (auto& [img, state] : drone_data) {
-        loop(img, state, obstacles);
+    for (std::pair<cv::Mat, DroneState>& pair : drone_data) {
+        // img, state, obstacles.
+        loop(pair.first, pair.second, obstacles);
     }
 
     cv::waitKey(0);
