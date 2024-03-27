@@ -6,6 +6,31 @@
 #include "constants.h"
 #include "image_processing.h"
 
+int OBSTACLE_POINT_MAX_LIFETIME = 200; // frames of periodic function
+
+cv::Mat timers;
+cv::Mat probabilities;
+
+void setGridProbability(const cv::Point& point, float probability) {
+	//assert(index >= 0 && index < GRID_LENGTH);
+	probabilities.at<float>(point.x, point.y) = clamp(probability, 0.0f, 1.0f);
+}
+
+float getGridProbability(const cv::Point& point) {
+	//assert(index >= 0 && index < GRID_LENGTH);
+	return probabilities.at<float>(point.x, point.y);
+}
+
+void setTimer(const cv::Point& point, int value) {
+	//assert(index >= 0 && index < GRID_LENGTH);
+	timers.at<int>(point.x, point.y) = clamp(value, 0, OBSTACLE_POINT_MAX_LIFETIME);
+}
+
+int getTimer(const cv::Point& point) {
+	//assert(index >= 0 && index < GRID_LENGTH);
+	return timers.at<int>(point.x, point.y);
+}
+
 void loop(cv::Mat& in_img, DroneState& state, const std::vector<Obstacle>& obstacles) {
     // Process a copy of the image so the original can be displayed later.
     cv::Mat original_img;
@@ -35,27 +60,187 @@ void loop(cv::Mat& in_img, DroneState& state, const std::vector<Obstacle>& obsta
         assert(colors.size() == points.size());
     } else {
         points = processImageForObjects(in_img);
+        //points = opticalFlow(in_img, points);
         colors.resize(points.size(), { 128, 128, 128 });
     }
+
+    std::vector<cv::Point2f> ref_points;
+    ref_points = {
+                   { 0 + 1, 240 - 1 }, /* bottom left */
+                   { 520 / 2, 240 - 1 }, /* bottom center */
+                   { 520 - 1, 240 - 1 }, /* bottom right */
+
+                   { 520 / 2 - 10, 240 }, /* bottom center */
+                   { 520 / 2 - 20, 240 }, /* bottom center */
+                   { 520 / 2 - 30, 240 }, /* bottom center */
+                   { 520 / 2 - 40, 240 }, /* bottom center */
+                   { 520 / 2 - 50, 240 }, /* bottom center */
+                   { 520 / 2 + 10, 240 }, /* bottom center */
+                   { 520 / 2 + 20, 240 }, /* bottom center */
+                   { 520 / 2 + 30, 240 }, /* bottom center */
+                   { 520 / 2 + 40, 240 }, /* bottom center */
+                   { 520 / 2 + 50, 240 } /* bottom center */
+                   
+                //    { 0 + 1, 0 + 1 }, /* top left */
+                //    { 520 / 2, 0 + 1 }, /* top center */
+                //    { 520 - 1, 0 + 1 }, /* top right */
+                //    { 0 + 1, 240 / 2 }, /* left */
+                //    { 520 / 2, 240 / 2 }, /* center */
+                //    { 520 - 1, 240 / 2 }, /* right */
+    };
+    std::vector<cv::Scalar> ref_colors = {
+        cv::Scalar(214, 112, 218) /* purple */,
+        cv::Scalar(214, 112, 218) /* purple */,
+        cv::Scalar(214, 112, 218) /* purple */,
+        cv::Scalar(214, 112, 218) /* purple */,
+        cv::Scalar(214, 112, 218) /* purple */,
+        cv::Scalar(214, 112, 218) /* purple */,
+        cv::Scalar(214, 112, 218) /* purple */,
+        cv::Scalar(214, 112, 218) /* purple */,
+        cv::Scalar(214, 112, 218) /* purple */,
+        cv::Scalar(214, 112, 218) /* purple */,
+        cv::Scalar(214, 112, 218) /* purple */,
+        cv::Scalar(214, 112, 218) /* purple */,
+        cv::Scalar(214, 112, 218) /* purple */
+        //cv::Scalar(0, 0, 255) /* red */,
+        //cv::Scalar(0, 0, 255) /* red */,
+        //cv::Scalar(0, 0, 255) /* red */,
+        //cv::Scalar(255, 0, 0) /* blue */,
+        //cv::Scalar(255, 0, 0) /* blue */,
+        //cv::Scalar(255, 0, 0) /* blue */
+    };
 
     // change later part of this if you want to change these bools for non test points.
     bool undistort = !use_test_points && true;
     bool correct_pitch = !use_test_points && true;
     bool correct_longitude = !use_test_points && true;
     
-    std::vector<cv::Point> grid_points = getGridPoints(
-        in_img.size(),
+    std::vector<cv::Point> u_grid_points = getGridPoints(
         state,
         points,
-        undistort,
-        correct_pitch,
-        correct_longitude);
+        original_img.size(),
+        true,
+        false,
+        false);
+    std::vector<cv::Point> d_grid_points = getGridPoints(
+        state,
+        points,
+        original_img.size(),
+        false,
+        false,
+        false);
 
-    drawGrid(grid_points, colors, obstacles, state);
+    cv::Mat undistorted = undistortImage(original_img);
+
+    int point_radius = 2;
+    for (size_t i = 0; i < ref_points.size(); i++) {
+        cv::circle(in_img, { (int)ref_points[i].x, (int)ref_points[i].y }, point_radius, ref_colors[i], -1);
+        cv::circle(undistorted, { (int)ref_points[i].x, (int)ref_points[i].y }, point_radius, ref_colors[i], -1);
+    }
+
+    std::vector<cv::Point> ref_grid_points = getGridPoints(
+        state,
+        ref_points,
+        original_img.size(),
+        true,
+        false,
+        false);
+
+    std::vector<cv::Point2f> undistorted_points = undistortPoints(points);
+    std::vector<cv::Point2f> undistorted_ref_points = undistortPoints(ref_points);
+    //printf("undistorted_points size: %i\n", undistorted_points.size());
+
+    cv::Mat grid = cv::Mat(GRID_SIZE.x, GRID_SIZE.y, CV_8UC3);
+    grid.setTo(cv::Scalar(255, 255, 255));
+
+    drawCarpet(grid);
+    drawObstacles(grid, obstacles);
+    
+    drawDrone(grid, state);
+
+    cv::Mat stored_grid;
+    grid.copyTo(stored_grid);
+
+    for (size_t i = 0; i < ref_grid_points.size(); i++) {
+        cv::circle(grid, { (int)ref_grid_points[i].x, (int)ref_grid_points[i].y }, point_radius, ref_colors[i], -1);
+    }
+
+    for (size_t i = 0; i < u_grid_points.size(); i++) {
+        cv::circle(grid, { (int)u_grid_points[i].x, (int)u_grid_points[i].y }, point_radius, cv::Scalar(255, 128, 128), -1);
+    }
+    //for (size_t i = 0; i < d_grid_points.size(); i++) {
+        //cv::circle(grid, { (int)d_grid_points[i].x, (int)d_grid_points[i].y }, point_radius, cv::Scalar(128, 128, 128), -1);
+    //}
+
+    // Add identified points to grid and set their timers.
+    for (size_t i = 0; i < u_grid_points.size(); i++)
+    {
+        setGridProbability(u_grid_points[i], 1.0);
+        setTimer(u_grid_points[i], OBSTACLE_POINT_MAX_LIFETIME);
+    }
+
+    // Update timers and grids that become empty
+	for (int j = 0; j < GRID_SIZE.y; j++)
+	{
+		for (int i = 0; i < GRID_SIZE.x; i++)
+		{
+			int timer = getTimer({ i, j }) - 1;
+			// TODO: Consider scaling probability from 1 to 0 based on (timer / OBSTACLE_POINT_MAX_LIFETIME).
+			if (timer <= 0) {
+				setGridProbability({ i, j }, 0);
+			}
+			// Timer is clamped to minimum 0 inside setTimer
+			setTimer({ i, j }, timer);
+		}
+	}
+
+
+    // Update timers and grids that become empty
+	for (int j = 0; j < GRID_SIZE.y; j++)
+	{
+		for (int i = 0; i < GRID_SIZE.x; i++)
+		{
+			int timer = getTimer({ i, j }) - 1;
+			// TODO: Consider scaling probability from 1 to 0 based on (timer / OBSTACLE_POINT_MAX_LIFETIME).
+			if (timer <= 0) {
+				setGridProbability({ i, j }, 0);
+			} else {
+                cv::circle(stored_grid, cv::Point(i,j), 5, cv::Scalar(0, 0, 255), -1);
+                //stored_grid.at<cv::Vec3b>(cv::Point(i,j)) = cv::Vec3b(0, 0, 255);
+            }
+			// Timer is clamped to minimum 0 inside setTimer
+			setTimer({ i, j }, timer);
+		}
+	}
+
+    //probabilities.copyTo(prev_probabilities);
+
+    cv::imshow("Grid", stored_grid);
+
+
+    for (size_t i = 0; i < undistorted_ref_points.size(); i++) {
+        cv::circle(undistorted, { (int)undistorted_ref_points[i].x, (int)undistorted_ref_points[i].y }, point_radius, cv::Scalar(255, 0, 0), -1);
+    }
+
+    for (size_t i = 0; i < undistorted_points.size(); i++) {
+        cv::circle(undistorted, {(int)undistorted_points[i].x, (int)undistorted_points[i].y}, point_radius, cv::Scalar(255, 0, 0), -1);
+    }
+
+    for (size_t i = 0; i < ref_points.size(); i++) {
+        cv::circle(original_img, { (int)ref_points[i].x, (int)ref_points[i].y }, point_radius, cv::Scalar(255, 0, 0), -1);
+    }
+
+    for (size_t i = 0; i < points.size(); i++) {
+        cv::circle(original_img, {(int)points[i].x, (int)points[i].y}, point_radius, cv::Scalar(255, 0, 0), -1);
+    }
+
+    //cv::imshow("Grid", grid);
 
     // Display original and final images.
     cv::imshow("Image", original_img);
     cv::imshow("Final", in_img);
+
+    cv::imshow("Undistorted", undistorted);
 
     // Pause before going to next frame.
     cv::waitKey(0);
@@ -66,6 +251,9 @@ void loop(cv::Mat& in_img, DroneState& state, const std::vector<Obstacle>& obsta
 int main() {
 
     initDrawingWindows();
+
+    timers = cv::Mat::zeros(GRID_SIZE.y, GRID_SIZE.x, CV_32S);
+    probabilities = cv::Mat::zeros(GRID_SIZE.y, GRID_SIZE.x, CV_32F);
 
     bool old_data_files = false;
 
@@ -83,7 +271,9 @@ int main() {
         );
     } else {
         // Directory path relative to src directory.
-        const char* drone_images_directory = "../images/20240324-020231/";
+        // 20240326-081515 // 1.25 zoom
+        // 20240324-020231 // 1.0 zoom
+        const char* drone_images_directory = "../images/20240326-081515/";
         auto pair = getDroneDataNew(drone_images_directory, NED);
         drone_data = pair.first;
         obstacles = pair.second;
