@@ -12,8 +12,8 @@
 static float correctPitch(float pitch_rate) {
     // TODO: Perhaps use CAMERA_TILT here.
     const float EXPECTED_MAX_PITCH_RATE = degToRad(11.0f);
-    const float PITCH_CORRECTION_FACTOR = degToRad(8);
-    const float PITCH_RATE_FACTOR = -degToRad(5);
+    const float PITCH_CORRECTION_FACTOR = -CAMERA_TILT;// - degToRad(5);
+    const float PITCH_RATE_FACTOR = degToRad(5);
 
     float pitch_fraction = fabsf(pitch_rate) / EXPECTED_MAX_PITCH_RATE;
 
@@ -25,7 +25,7 @@ static float correctPitch(float pitch_rate) {
     }
     */
 
-    return PITCH_CORRECTION_FACTOR + PITCH_RATE_FACTOR * pitch_fraction;
+    return PITCH_CORRECTION_FACTOR;// + PITCH_RATE_FACTOR * pitch_fraction;
 }
 
 static Vector3f optitrackToScreenRotation(Vector3f pos, CoordinateSystem coordinate_system) {
@@ -48,7 +48,14 @@ static Vector3f optitrackToScreenRotation(Vector3f pos, CoordinateSystem coordin
 static DroneState optitrackToScreenState(DroneState state, CoordinateSystem coordinate_system) {
     // Translate yaw from relative to true north to relative to screen north (up).
     // Clockwise is positive here.
-    state.optitrack_angle.z += M_PI / 4 - TRUE_NORTH_TO_CARPET_ANGLE + M_PI;
+    state.optitrack_angle.z += TRUE_NORTH_TO_CARPET_ANGLE + M_PI;
+    state.optitrack_angle.y += 0.0f;//degToRad(4.0f);//degToRad(CAMERA_TILT);
+
+    // Offset camera forward and up as it is not on the center of the drone.
+    //float CAM_OFFSET = 0.1;//0.05;
+    //state.optitrack_pos.x += CAM_OFFSET * cos(state.optitrack_angle.z);
+    //state.optitrack_pos.y += CAM_OFFSET * sin(state.optitrack_angle.z);
+    //state.optitrack_pos.z += CAM_OFFSET;
 
     state.optitrack_pos = optitrackToScreenRotation(state.optitrack_pos, coordinate_system);
     return state;
@@ -94,7 +101,7 @@ static void fixDroneState(DroneState& in_state) {
     // Fix drone state to center at given inclination for testing.
     in_state.optitrack_pos.x = 0;
     in_state.optitrack_pos.y = 0;
-    in_state.optitrack_pos.z = -1;
+    in_state.optitrack_pos.z = 1;
     in_state.optitrack_angle.x = 0;
     in_state.optitrack_angle.y = -degToRad(45);
     //in_state.optitrack_angle.z = 0;
@@ -222,15 +229,13 @@ std::pair<std::vector<std::pair<cv::Mat, DroneState>>, std::vector<Obstacle>> ge
             obstacle.optitrack_pos = { std::stof(o_row[1]), std::stof(o_row[2]), OBSTACLE_Z };
             obstacle.optitrack_angle = { std::stof(o_row[3]), std::stof(o_row[4]), std::stof(o_row[5]) };
 
-            obstacle.optitrack_angle.z += TRUE_NORTH_TO_CARPET_ANGLE;
-
             // ENU is default if you are reading positions from Gazebo.
             //obstacle.optitrack_pos = optitrackToScreenRotation(obstacle.optitrack_pos, ENU);
 
             float angle = M_PI / 2 - TRUE_NORTH_TO_CARPET_ANGLE;
 
             obstacle.optitrack_pos = {
-                -(obstacle.optitrack_pos.x * cos(angle) - obstacle.optitrack_pos.y * sin(angle)),
+              -(obstacle.optitrack_pos.x * cos(angle) - obstacle.optitrack_pos.y * sin(angle)),
                 obstacle.optitrack_pos.x * sin(angle) + obstacle.optitrack_pos.y * cos(angle),
                 OBSTACLE_Z,
             };
@@ -252,8 +257,8 @@ std::pair<std::vector<std::pair<cv::Mat, DroneState>>, std::vector<Obstacle>> ge
 std::vector<std::pair<cv::Mat, DroneState>> getDroneData(
     const std::filesystem::path& drone_images_directory,
     const std::filesystem::path& drone_data_file,
-    const std::filesystem::path& cache_data_directory,
     const std::filesystem::path& drone_data_directory,
+    const std::filesystem::path& cache_data_directory,
     CoordinateSystem coordinate_system) {
     if (!std::filesystem::is_directory(cache_data_directory) || 
         !std::filesystem::exists(cache_data_directory)) {
