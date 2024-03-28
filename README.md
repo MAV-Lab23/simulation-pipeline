@@ -1,11 +1,16 @@
 ### Linux:
 
+To install and generate build files:
 ```
 sudo apt install build-essential cmake gcc libopencv-dev
 mkdir build
 cd build
 cmake ..
 cmake --build .
+```
+To make and run the code use:
+```
+make && ./simulation
 ```
 
 ### Windows MSVC:
