@@ -47,6 +47,7 @@ static float getGridProbability(int index) {
 	if (index >= 0 && index < GRID_LENGTH) {
 	  return probabilities[index];
   }
+  return 0.0f;
 }
 
 static void setTimer(int index, int value) {
@@ -59,6 +60,7 @@ static int getTimer(int index) {
 	if (index >= 0 && index < GRID_LENGTH) {
 	  return timers[index];
   }
+  return 0;
 }
 
 static void addGridElement(int index) {
