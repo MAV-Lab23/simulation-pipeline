@@ -15,6 +15,10 @@
 #include "types.h"
 #include "constants.h"
 #include "utility.h"
+#include "draw.h"
+
+// Draw horizon line.
+#define DRAW_HORIZON_LINE true
 
 using Contour = std::vector<cv::Point>;
 
@@ -247,8 +251,13 @@ cv::Mat extractLargestContour(const cv::Mat& image, float* current_horizon_y, st
 
 	// Create output image (same size and type as input)
 	cv::Mat filtered_image = cv::Mat::zeros(image.size(), CV_8UC1);
+	cv::Mat contour_image;
 #ifndef IN_PAPARAZZI
-	cv::Mat contour_image = cv::Mat::zeros(image.size(), CV_8UC1);
+	contour_image = cv::Mat::zeros(image.size(), CV_8UC1);
+#else
+	if (WRITE_REALTIME_PROCESSING_IMAGES) {
+		contour_image = cv::Mat::zeros(image.size(), CV_8UC1);
+	}
 #endif
 
 	if (floor_cns.size() > 0) {
@@ -257,30 +266,35 @@ cv::Mat extractLargestContour(const cv::Mat& image, float* current_horizon_y, st
 		cv::drawContours(filtered_image, cns, -1, cv::Scalar(255), cv::FILLED);
 #ifndef IN_PAPARAZZI
 		cv::drawContours(contour_image, contours, -1, cv::Scalar(255), 1, cv::LINE_8);
+#else
+		if (WRITE_REALTIME_PROCESSING_IMAGES) {
+			cv::drawContours(contour_image, contours, -1, cv::Scalar(255), 1, cv::LINE_8);
+		}
 #endif
 	}
 
 #ifndef IN_PAPARAZZI
 	cv::imshow("Intermediate1", contour_image);
 	//cv::drawContours(filtered_image, above_cns, -1, cv::Scalar(255), cv::FILLED);
+#else
+    writeImage(contour_image, "contour_images");
 #endif
-
-	// Draw horizon line.
-	bool draw_horizon = true;
 
 	cv::Mat filtered_image_with_horizon;
 
-	if (draw_horizon) {
+	if (DRAW_HORIZON_LINE) {
 		filtered_image.copyTo(filtered_image_with_horizon);
 		cv::line(filtered_image_with_horizon, cv::Point(0, horizon_y), cv::Point(filtered_image_with_horizon.cols, horizon_y), cv::Scalar(230), 2);
 		
 		#ifndef IN_PAPARAZZI
 		cv::imshow("Filtered", filtered_image_with_horizon);
 		#endif
+    	writeImage(filtered_image_with_horizon, "filtered_images_with_horizon");
 	} else {
 		#ifndef IN_PAPARAZZI
 		cv::imshow("Filtered", filtered_image);
 		#endif
+    	writeImage(filtered_image, "filtered_images");
 	}
 
 	*current_horizon_y = horizon_y;
@@ -578,6 +592,7 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 		}
 		
 		cv::imshow("Intermediate2", drawing);
+    	writeImage(drawing, "hulls");
 #endif
 
 		// Get outlining hull of biggest chunk of the floor.
@@ -714,6 +729,7 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 
 	#ifndef IN_PAPARAZZI
 	cv::imshow("Floor", isolatedFloor);
+	writeImage(isolatedFloor, "isolated_floors");
 	#endif
 
 	// Detect and smooth the floor border

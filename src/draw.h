@@ -3,10 +3,43 @@
 
 #ifdef GROUP_10_OPENCV
 
+#ifdef IN_PAPARAZZI
+#include "modules/computer_vision/video_capture.h"
+#endif
+
 #include <opencv2/opencv.hpp>
+#include <vector>
 
 #include "types.h"
 #include "utility.h"
+
+#ifdef IN_PAPARAZZI
+    #ifndef VIDEO_CAPTURE_PATH
+        #define VIDEO_CAPTURE_PATH /data/ftp/internal_000/images
+    #endif
+#endif
+
+extern int image_process_loops = 0;
+
+#define WRITE_REALTIME_PROCESSING_IMAGES true 
+
+void writeImage(const cv::Mat& image, const std::string sub_directory) {
+#ifdef IN_PAPARAZZI
+    if (WRITE_REALTIME_PROCESSING_IMAGES) {
+        std::string directory = STRINGIFY(VIDEO_CAPTURE_PATH) + "/../" + sub_directory + "/";
+        if (access(directory.c_str(), F_OK)) {
+            char save_dir_cmd[266]; // write 10b + [0:256]
+            sprintf(save_dir_cmd, "mkdir -p %s", save_dir);
+            if (system(save_dir_cmd) != 0) {
+                printf("[video_capture] Could not create sub directory for processed images: %s.\n", sub_directory.c_str());
+                return;
+            }
+        }
+        std::string image_path = directory + std::to_string(image_process_loops) + ".jpg";
+        cv::imwrite(image_path, image);
+    }
+#endif
+}
 
 #ifndef IN_PAPARAZZI
 

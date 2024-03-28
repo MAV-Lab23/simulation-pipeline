@@ -6,7 +6,9 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include "std.h"
 #include "modules/core/abi.h"
+
 #include "image_processing.h"
 
 // FOR GRID VISUALIZATION
@@ -17,12 +19,8 @@
 #define PRINT(string,...) fprintf(stderr, "[avoider->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
 #endif
 
-static const bool SHOW_REALTIME_PROCESSED_IMAGE = false; 
-static const bool SHOW_REALTIME_GRID = false;
-
 int parseImage(char *img, int width, int height, const DroneState state)
 {
-  static int counter = 0;
   //PRINT("5Got image with size %i, %i \n", width, height);
   // Convert paparazzi image into OpenCV image.
   cv::Mat M(height, width, CV_8UC2, img);
@@ -48,7 +46,7 @@ int parseImage(char *img, int width, int height, const DroneState state)
     AbiSendMsgGROUP_10_OBSTACLE_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, u_grid_points[i].x, u_grid_points[i].y);
   }
 
-  if (SHOW_REALTIME_PROCESSED_IMAGE) {
+  if (SHOW_REALTIME_PROCESSED_IMAGE && video_capture_record_video) {
     int point_radius = 2;
     for (size_t i = 0; i < points.size(); i++) {
       //PRINT("Drawing point to image: %i, %i \n", (int)points[i].x, (int)points[i].y);
@@ -56,11 +54,10 @@ int parseImage(char *img, int width, int height, const DroneState state)
     }
 
     // Show real time processed video.
-    std::string final_image_path = "images/final_image" + std::to_string(counter) + ".jpg";
-    cv::imwrite(final_image_path, image);
+    writeImage(grid, "processed_images");
   }
 
-  if (SHOW_REALTIME_GRID) {
+  if (SHOW_REALTIME_GRID && video_capture_record_video) {
     cv::Mat grid = cv::Mat(GRID_SIZE.x, GRID_SIZE.y, CV_8UC3);
     grid.setTo(cv::Scalar(255, 255, 255));
 
@@ -88,14 +85,13 @@ int parseImage(char *img, int width, int height, const DroneState state)
     }
 
     // Show real time grid.
-    std::string grid_path = "images/grid" + std::to_string(counter) + ".jpg";
-    cv::imwrite(grid_path, grid);
+    writeImage(grid, "grid_images");
   }
 
   // Not needed due to imwrite.
   // Convert back to YUV422 and put it in place of the original image
   //colorbgr_opencv_to_yuv422(image, img, width, height);
-  counter++;
+  image_process_loops++;
   return 0;
 }
 
