@@ -27,7 +27,7 @@ extern int timers[GRID_LENGTH];
 static float move_distance = 1.0f; // max waypoint displacement before re-evaluating [m]
 
 static float closest_obstacle_distance = FLT_MAX; // distance to nearest obstacle [m]
-static float closest_obstacle_distance_threshold = 1; // max distance to nearest obstacle before finding new heading [m]
+static float closest_obstacle_distance_threshold = 0.4; // max distance to nearest obstacle before finding new heading [m]
 
 static float heading_diff = HEADING_INCREMENT;
 
