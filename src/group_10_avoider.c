@@ -7,10 +7,7 @@
 #include <time.h>
 #include <stdio.h>
 
-#include "navigation.h"
-#include "drone.h"
-#include "constants.h"
-#include "utility.h"
+#include "opencv_wrapper.h"
 
 #define NAV_C // needed to get the nav functions like Inside...
 #include "generated/flight_plan.h"
@@ -19,8 +16,7 @@
 #define PRINT(string,...) fprintf(stderr, "[avoider->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
 #endif
 
-float obstacle_x = -FLT_MAX;
-float obstacle_y = -FLT_MAX;
+float heading_diff = HEADING_INCREMENT;
 
 static uint8_t moveWaypointForward(uint8_t waypoint, float distanceMeters);
 static uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters);
@@ -41,10 +37,6 @@ enum navigation_state_t {
 // define and initialise global variables
 enum navigation_state_t navigation_state = SEARCH_FOR_SAFE_HEADING;
 
-int16_t obstacle_free_confidence = 0;   // a measure of how certain we are that the way ahead is safe.
-
-const int16_t max_trajectory_confidence = 5; // number of consecutive negative object detections to be sure we are obstacle free
-
 #ifndef GROUP_10_OBSTACLE_DETECTION_ID
 #define GROUP_10_OBSTACLE_DETECTION_ID ABI_BROADCAST
 #endif
@@ -53,14 +45,8 @@ static abi_event obstacle_detection_ev;
 
 static void obstacle_detection_cb(uint8_t __attribute__((unused)) sender_id, float x, float y)
 {
-	obstacle_x = x;
-	obstacle_y = y;
-	// Convert 2D to 1D coordinate.
-	int index = obstacle_x + GRID_SIZE.x * obstacle_y;
-
-	// Add obstacle point to probabilities.
-  addGridElement(index);
-  printGridElement(obstacle_x, obstacle_y);
+	// Add obstacle point to probability grid.
+  addNavigationObstacle((int)x, (int)y);
 }
 
 void group_10_avoider_init(void) {
@@ -77,97 +63,46 @@ void group_10_avoider_periodic(void)
     return;
   }
 
-  DroneState state = getDroneState();
-
-  Vector2i drone_grid_pos = getObjectGridPosition(state.optitrack_pos.x, state.optitrack_pos.y);
-  float drone_heading = state.optitrack_angle.z;
-  float best_heading = drone_heading;
-  Vector2i best_endpoint = drone_grid_pos;
-
-  Vector2i closest_cell = updateGrid(drone_grid_pos, false);
-
-	if (validVectorInt(closest_cell)) {
-		//PRINT("Closest probabilities cell: (%i, %i)\n", closest_cell.x, closest_cell.y);
-	} else {
-		//PRINT("No close probabilities cell found\n");
-	}
-
-	//PRINT("Closest obstacle distance (cells): %.3f\n", closest_obstacle_distance);
-
-  // update our safe confidence using color threshold
-  if (closest_obstacle_distance > closest_obstacle_distance_threshold) {
-    obstacle_free_confidence++;
-  } else {
-    obstacle_free_confidence -= 2;  // be more cautious with positive obstacle detections
-  }
-
-  // bound obstacle_free_confidence
-  Bound(obstacle_free_confidence, 0, max_trajectory_confidence);
-
   int turns_before_moving = HEADING_COUNT;
   static int turns = 0;
 
-  int goal_x;
-  int goal_y;
   float dist_x;
   float dist_y;
-  float dist2;
   float dist;
 
-  Vector2i goal_grid_pos;
-
-  float dist_before_recheck_heading = 0.1;
-
-  int start_pos_x;
-  int start_pos_y;
+  static int start_pos_x = 0;
+  static int start_pos_y = 0;
   int current_pos_x;
   int current_pos_y;
-  float move_dist = 1.0f;
   float diff;
+  float best_heading;
 
   switch (navigation_state) {
     case IDLE:
         break;
     case MOVING:
-        //goal_x = waypoint_get_x(WP_GOAL);
-        //goal_y = waypoint_get_y(WP_GOAL);
-        //goal_grid_pos = getObjectGridPosition(goal_x, goal_y);
-        //PRINT("Drone grid pos: %i, %i, Goal grid pos: %i, %i \n", drone_grid_pos.x, drone_grid_pos.y, goal_grid_pos.x, goal_grid_pos.y);
-        
         current_pos_x = stateGetPositionEnu_i()->x;
         current_pos_y = stateGetPositionEnu_i()->y;
         dist_x = start_pos_x - current_pos_x;
         dist_y = start_pos_y - current_pos_y;
-        dist2 = dist_x * dist_y + dist_y * dist_y;
-        dist = sqrtf(dist2);// * METERS_PER_GRID_CELL.x;
-        diff = move_dist - dist;
+        dist = sqrtf(dist_x * dist_y + dist_y * dist_y);
+        diff = MOVE_DISTANCE - dist;
         if (diff > 0) {
             moveWaypointForward(WP_TRAJECTORY, diff);
             moveWaypointForward(WP_GOAL, diff);
         } else {
             navigation_state = SEARCH_FOR_SAFE_HEADING;
         }
-        //if (dist < dist_before_recheck_heading) {
-          //waypoint_move_here_2d(WP_GOAL);
-          //waypoint_move_here_2d(WP_TRAJECTORY);
-          //navigation_state = IDLE;
-          //PRINT("Within %.2f m of goal, stopping. \n", dist);
-        //} else {
-        //}
-       // PRINT("Moving toward goal in progress, current distance: %.2f \n", dist);
       break;
     case SAFE:
       turns = 0;
       // Move waypoint forward
-      moveWaypointForward(WP_TRAJECTORY, move_distance);
+      moveWaypointForward(WP_TRAJECTORY, MOVE_DISTANCE);
       if (!InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY))){
         navigation_state = OUT_OF_BOUNDS;
-      } else if (obstacle_free_confidence == 0) {
-        navigation_state = OBSTACLE_FOUND;
       } else {
-        moveWaypointForward(WP_GOAL, move_distance);
+        moveWaypointForward(WP_GOAL, MOVE_DISTANCE);
       }
-
       break;
     case OBSTACLE_FOUND:
       // stop
@@ -178,45 +113,19 @@ void group_10_avoider_periodic(void)
       chooseRandomIncrementAvoidance();
 
       navigation_state = SEARCH_FOR_SAFE_HEADING;
-
       break;
     case SEARCH_FOR_SAFE_HEADING:
-      best_heading = getBestHeading(drone_grid_pos, drone_heading, &best_endpoint);
-
+      best_heading = getNavigationHeading();
       if (best_heading != INVALID_POINT_FLT) {
-        set_nav_heading(headingScreenToOptitrack(best_heading));
+        set_nav_heading(best_heading);
 
         start_pos_x = stateGetPositionEnu_i()->x;
         start_pos_y = stateGetPositionEnu_i()->y;
 
-        moveWaypointForward(WP_TRAJECTORY, move_dist);
-        moveWaypointForward(WP_GOAL, move_dist);
-
-        // Vector3f endpoint;
-
-        // endpoint.x = best_endpoint.x * METERS_PER_GRID_CELL.x;
-        // endpoint.y = best_endpoint.x * METERS_PER_GRID_CELL.x;
-        // endpoint.z = 1;
-
-        // endpoint = screenToOptitrackRotation(endpoint, NED);
-
-        // struct NedCoor_f ned_coord;
-
-        // ned_coord.x = endpoint.x;
-        // ned_coord.y = endpoint.y;
-        // ned_coord.z = 1;
-
-        // struct EnuCoor_f enu_coord;
-        // ENU_OF_TO_NED(enu_coord, ned_coord);
-
-        // waypoint_move_xy_i(WP_TRAJECTORY, (int)enu_coord.x, (int)enu_coord.y);
-        // waypoint_move_xy_i(WP_GOAL, (int)enu_coord.x, (int)enu_coord.y);
-
-        //moveWaypointForward(WP_TRAJECTORY, 2.0f * move_distance);
-        //moveWaypointForward(WP_GOAL, 2.0f * move_distance);
+        moveWaypointForward(WP_TRAJECTORY, MOVE_DISTANCE);
+        moveWaypointForward(WP_GOAL, MOVE_DISTANCE);
 
         navigation_state = MOVING;
-        obstacle_free_confidence = 2;
       } else {
         // If no best heading founds, drone is in crowded area so turn it and try again.
         increase_nav_heading(heading_diff);
@@ -225,22 +134,19 @@ void group_10_avoider_periodic(void)
       // If drone has turns a full 360 degrees and still has not found a safe heading, move it forward slightly and start over.
       if (turns >= turns_before_moving) {
         turns = 0;
-        float retry_move_distance = 0.1; // fraction of move_distance.
-        moveWaypointForward(WP_TRAJECTORY, retry_move_distance * move_distance);
-        moveWaypointForward(WP_GOAL, retry_move_distance * move_distance);
+        float retry_move_distance = 0.1; // fraction of MOVE_DISTANCE.
+        moveWaypointForward(WP_TRAJECTORY, retry_move_distance * MOVE_DISTANCE);
+        moveWaypointForward(WP_GOAL, retry_move_distance * MOVE_DISTANCE);
       }
       break;
     case OUT_OF_BOUNDS:
       increase_nav_heading(heading_diff);
 
-      moveWaypointForward(WP_TRAJECTORY, move_distance);
+      moveWaypointForward(WP_TRAJECTORY, MOVE_DISTANCE);
 
       if (InsideObstacleZone(WaypointX(WP_TRAJECTORY), WaypointY(WP_TRAJECTORY))){
         // add offset to head back into arena
         increase_nav_heading(heading_diff);
-
-        // reset safe counter
-        obstacle_free_confidence = 0;
 
         // ensure direction is safe before continuing
         navigation_state = SEARCH_FOR_SAFE_HEADING;

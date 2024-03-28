@@ -2,6 +2,7 @@
 #define GROUP_10_NAVIGATION_H
 
 #include <assert.h>
+#include <math.h>
 
 #include "drone.h"
 #include "constants.h"
@@ -15,27 +16,14 @@
 #define PRINT(string,...) printf("[navigation->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
 #endif
 
-#define HEADING_INCREMENT 10
-#define DEGREES_TOTAL 360
-#define HEADING_COUNT (DEGREES_TOTAL / HEADING_INCREMENT)
-
-const int OBSTACLE_POINT_MAX_LIFETIME = 200; // frames of periodic function
-
 extern float probabilities[GRID_LENGTH];
 extern int timers[GRID_LENGTH];
 
-static float move_distance = 1.0f; // max waypoint displacement before re-evaluating [m]
-
-static float closest_obstacle_distance = FLT_MAX; // distance to nearest obstacle [m]
-static float closest_obstacle_distance_threshold = 0.4; // max distance to nearest obstacle before finding new heading [m]
-
-static float heading_diff = HEADING_INCREMENT;
-
 static void printGrid(void) {
-  for (int j = 0; j < GRID_SIZE.y; j++)
+  for (int j = 0; j < GRID_HEIGHT; j++)
 	{
-		int offset = j * GRID_SIZE.x;
-		for (int i = 0; i < GRID_SIZE.x; i++)
+		int offset = j * GRID_WIDTH;
+		for (int i = 0; i < GRID_WIDTH; i++)
 		{
 			int index = i + offset;
       PRINT("(%i, %i): probability: %.1f, timer: %i \n", i, j, probabilities[index], timers[index]);
@@ -44,7 +32,7 @@ static void printGrid(void) {
 }
 
 static void printGridElement(int i, int j) {
-  int index = i + j * GRID_SIZE.x;
+  int index = i + j * GRID_WIDTH;
   PRINT("(%i, %i): probability: %.1f, timer: %i \n", i, j, probabilities[index], timers[index]);
 }
 
@@ -74,7 +62,7 @@ static void addGridElement(int index) {
 	setTimer(index, OBSTACLE_POINT_MAX_LIFETIME);
 }
 
-static float distanceSquared(const Vector2f p1, const Vector2f p2) {
+static float distanceSquared(const cv::Point p1, const cv::Point p2) {
   return powf(p1.x - p2.x, 2) + powf(p1.y - p2.y, 2);
 }
 
@@ -83,57 +71,52 @@ static float customModf(float x, float y) {
 }
 
 static float normalizeHeading(float heading) {
-  return customModf(heading, 360.0f);
+  return customModf(heading, DEGREES_TOTAL);
 }
 
 static void findBestHeading(
-#ifndef IN_PAPARAZZI
     cv::Mat& grid,
-#endif
-  const Vector2i drone_position,
+  const cv::Point drone_position,
   const float drone_heading /* radians */,
   const float max_distance,
   const float min_point_distance,
-  Vector2i* best_endpoint,
-  float* best_heading /* radians */) {
+  cv::Point* best_endpoint,
+  float* best_heading, /* radians */
+  bool draw) {
 
-    float distance_threshold2 = min_point_distance * min_point_distance / (METERS_PER_GRID_CELL.x * METERS_PER_GRID_CELL.x);
+    float distance_threshold2 = min_point_distance * min_point_distance / (METERS_PER_GRID_CELL_X * METERS_PER_GRID_CELL_X);
 
     float smallest_heading_difference = DEGREES_TOTAL;
-
-    // Headings which are this many grid cells from carpet edge are also skipped.
-    float heading_width_padding = 10;
-    float heading_height_padding = 10;
     
-    Vector2i top_left;
-    Vector2i bottom_right;
-    getCarpetCorners(&top_left, &bottom_right);
+    cv::Point top_left;
+    cv::Point bottom_right;
+    getCarpetCornerGridPoints(&top_left, &bottom_right);
 
   for (float heading = 0.0f; heading < DEGREES_TOTAL; heading += HEADING_INCREMENT) {
-    float heading_rad = heading * M_PI / 180.0;
+    float heading_rad = DEG_TO_RAD(heading);
 
-    #ifndef IN_PAPARAZZI
-    //drawHeading(grid, drone_position, heading, max_distance, cv::Scalar(128, 128, 128), 1);
-    #endif
+    if (draw) {
+      //drawHeading(grid, drone_position, heading, max_distance, cv::Scalar(128, 128, 128), 1);
+    }
 
-    Vector2f endpoint = {
-      drone_position.x + max_distance / METERS_PER_GRID_CELL.x * -cos(heading_rad),
-      drone_position.y + max_distance / METERS_PER_GRID_CELL.y * -sin(heading_rad)
+    cv::Point2f endpoint = {
+      drone_position.x + max_distance / METERS_PER_GRID_CELL_X * -cos(heading_rad),
+      drone_position.y + max_distance / METERS_PER_GRID_CELL_Y * -sin(heading_rad)
     };
 
     // Skip headings which would take the drone out of bounds (and some headings near those).
-    if (endpoint.x > bottom_right.x - heading_width_padding ||
-        endpoint.x < top_left.x + heading_width_padding ||
-        endpoint.y > bottom_right.y - heading_height_padding ||
-        endpoint.y < top_left.y + heading_height_padding) continue;
+    if (endpoint.x > bottom_right.x - HEADING_WIDTH_PADDING  ||
+        endpoint.x < top_left.x     + HEADING_WIDTH_PADDING  ||
+        endpoint.y > bottom_right.y - HEADING_HEIGHT_PADDING ||
+        endpoint.y < top_left.y     + HEADING_HEIGHT_PADDING) continue;
 
     float shortest_distance2 = FLT_MAX;
 
-    for (int j = 0; j < GRID_SIZE.y; j++) {
-        int offset = j * GRID_SIZE.x;
-        for (int i = 0; i < GRID_SIZE.x; i++) {
-            int index = i + GRID_SIZE.x * j;
-            Vector2f point = { (float)i, (float)j };
+    for (int j = 0; j < GRID_HEIGHT; j++) {
+        int offset = j * GRID_WIDTH;
+        for (int i = 0; i < GRID_WIDTH; i++) {
+            int index = i + offset;
+            cv::Point2f point = { (float)i, (float)j };
             float probability = getGridProbability(index);
             if (probability > 0) {
                 float point_distance2 = distanceSquared(endpoint, point);
@@ -144,30 +127,24 @@ static void findBestHeading(
         }
     }
 
-
     if (shortest_distance2 != FLT_MAX && shortest_distance2 > distance_threshold2) {
-        float norm_drone_heading = (int)radToDeg(drone_heading) % 360;
-        //PRINT("drone: %.2f\n", norm_drone_heading);
-        float diff = (float)((int)fabsf(norm_drone_heading - heading) % 360);
-        float diff_other_way = fabsf(diff - 360);
-        diff = MIN(diff, diff_other_way);
+        float norm_drone_heading = (int)RAD_TO_DEG(drone_heading) % DEGREES_TOTAL;
+        float diff = (float)((int)fabsf(norm_drone_heading - heading) % DEGREES_TOTAL);
+        // Rotate in the other direction to see if any points there are closer
+        float diff_other_direction = fabsf(diff - DEGREES_TOTAL);
+        diff = fminf(diff, diff_other_direction);
         // Draw all potentially acceptable heading endpoints.
-    #ifndef IN_PAPARAZZI
-        cv::circle(grid, { (int)endpoint.x, (int)endpoint.y }, 1, cv::Scalar(255, 0, 0), -1);
-    #endif
+        if (draw) {
+          cv::circle(grid, { (int)endpoint.x, (int)endpoint.y }, 1, cv::Scalar(255, 0, 0), -1);
+        }
         if (diff <= smallest_heading_difference) {
             smallest_heading_difference = diff;
             best_endpoint->x = (int)endpoint.x;
             best_endpoint->y = (int)endpoint.y;
             *best_heading = heading_rad;
         }
-        // shortest_distance2 < best_heading_distance2
-        // best_heading_distance2 = shortest_distance2;
-        //*best_heading = heading;
-        //float dist = sqrtf(shortest_distance2 / (GRID_SIZE.x * GRID_SIZE.x + GRID_SIZE.y * GRID_SIZE.y));
     }
   }
-    //PRINT("----\n");
     if (smallest_heading_difference == DEGREES_TOTAL) {
         *best_heading = INVALID_POINT_FLT;
         best_endpoint->x = INVALID_POINT;
@@ -177,60 +154,28 @@ static void findBestHeading(
         // Change drone heading until one is found, if not go forward.
     } else {
         // Draw best heading endpoint.
-    #ifndef IN_PAPARAZZI
-        cv::circle(grid, { best_endpoint->x, best_endpoint->y }, 3, cv::Scalar(0, 0, 255), -1);
-    #endif
+        if (draw) {
+          cv::circle(grid, { best_endpoint->x, best_endpoint->y }, 3, cv::Scalar(0, 0, 255), -1);
+        }
     }
 }
 
 // Gets the best drone heading in radians.
-static float getBestHeading(
-#ifndef IN_PAPARAZZI
-    cv::Mat& grid,
-#endif
-    const Vector2i drone_grid_pos, float drone_heading, Vector2i* best_endpoint) {
+static float getBestHeading(cv::Mat& grid, const cv::Point drone_grid_pos, float drone_heading, cv::Point* best_endpoint, bool draw) {
     float best_heading = drone_heading; // radians
-    float min_point_distance = closest_obstacle_distance_threshold;
+    float min_point_distance = ACCEPTABLE_HEADING_POINT_TO_OBSTACLE_DISTANCE;
 
-    findBestHeading(
-#ifndef IN_PAPARAZZI
-        grid, 
-#endif
-        drone_grid_pos, drone_heading, move_distance, min_point_distance, best_endpoint, &best_heading);
-
-    //PRINT("Best endpoint found: (%i, %i), Increasing heading by: %.3f \n", best_endpoint->x, best_endpoint->y, best_heading);
-    
+    findBestHeading(grid, drone_grid_pos, drone_heading, MOVE_DISTANCE, min_point_distance, best_endpoint, &best_heading, draw);
     return best_heading;
 }
 
-static Vector2i getObjectGridPosition(float optitrack_x, float optitrack_y) {
-  Vector2f opti_pos;
-  opti_pos.x = optitrack_x;
-  opti_pos.y = optitrack_y;
-
-  Vector2i drone_grid_pos = optitrackCoordinateToGrid(opti_pos);
-    
-	// Drone outside of probabilities
-	if (!validVectorInt(drone_grid_pos)) {
-      Vector2f norm_pos;
-
-      norm_pos.x = normalizeValue(optitrack_x, -ARENA_SIZE.x / 2.0f, ARENA_SIZE.x / 2.0f);
-      norm_pos.y = normalizeValue(optitrack_y, -ARENA_SIZE.y / 2.0f, ARENA_SIZE.y / 2.0f);
-
-      // Get a clamped pos as an estimate of drone position.
-      drone_grid_pos.x = clamp((int)(norm_pos.x * GRID_SIZE.x), 0, GRID_SIZE.x);
-      drone_grid_pos.y = clamp((int)(norm_pos.y * GRID_SIZE.y), 0, GRID_SIZE.y);
-	}
-  return drone_grid_pos;
-}
-
 // Update timers and grids that become empty
-Vector2i updateGrid(const Vector2i drone_grid_pos, bool subtract_timers) {
-	Vector2i closest_cell = { INVALID_POINT, INVALID_POINT };
-	for (int j = 0; j < GRID_SIZE.y; j++)
+cv::Point updateGrid(const cv::Point& drone_grid_pos, bool subtract_timers) {
+	cv::Point closest_cell = { INVALID_POINT, INVALID_POINT };
+	for (int j = 0; j < GRID_HEIGHT; j++)
 	{
-		int offset = j * GRID_SIZE.x;
-		for (int i = 0; i < GRID_SIZE.x; i++)
+		int offset = j * GRID_WIDTH;
+		for (int i = 0; i < GRID_WIDTH; i++)
 		{
 			int index = i + offset;
 			int timer = getTimer(index);
@@ -247,8 +192,8 @@ Vector2i updateGrid(const Vector2i drone_grid_pos, bool subtract_timers) {
 				float probability = getGridProbability(index);
 				if (probability > 0) {
           // TODO: Figure out if this is necessary or useful.
-					// float x_dist = (i - drone_grid_pos.x) * METERS_PER_GRID_CELL.x;
-					// float y_dist = (j - drone_grid_pos.y) * METERS_PER_GRID_CELL.y;
+					// float x_dist = (i - drone_grid_pos.x) * METERS_PER_GRID_CELL_X;
+					// float y_dist = (j - drone_grid_pos.y) * METERS_PER_GRID_CELL_Y;
 					// float dist = sqrtf(x_dist * x_dist + y_dist * y_dist);
 					// if (dist <= closest_obstacle_distance) {
 					// 	closest_obstacle_distance = dist;
@@ -259,7 +204,15 @@ Vector2i updateGrid(const Vector2i drone_grid_pos, bool subtract_timers) {
 			}
 		}
 	}
-    return closest_cell;
+  return closest_cell;
+}
+
+float updateNavigation(const DroneState& state, cv::Mat& grid, bool draw, bool subtract_timers) {
+  cv::Point drone_grid_pos = optitrack3DToGrid(state.pos, true);
+  cv::Point closest_cell = updateGrid(drone_grid_pos, subtract_timers);
+  cv::Point best_endpoint = { 0, 0 };
+  float best_heading = getBestHeading(grid, drone_grid_pos, state.heading.z, &best_endpoint, draw);
+  return gridToOptitrackHeading(best_heading);
 }
 
 #endif
