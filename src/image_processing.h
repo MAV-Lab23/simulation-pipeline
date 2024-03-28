@@ -310,8 +310,8 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 			// This is done by collapsing all the y values of the floor contour between the minimum and maximum floor x values.
 
 			// Find min and max x coordinates of the floor (pixels which are at the bottom of the image).
-			int left_extreme = img_width / 2;
-			int right_extreme = img_width / 2;
+			int left_extreme = img_width / 2 - 1;
+			int right_extreme = img_width / 2 + 1;
 			size_t left_extreme_index = 0;
 			size_t right_extreme_index = floor.size() - 1;
 
@@ -320,8 +320,7 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 				if (floor_point.x <= left_extreme) {
 					left_extreme = floor_point.x;
 					left_extreme_index = i;
-				}
-				if (floor_point.x >= right_extreme) {
+				} else if (floor_point.x >= right_extreme) {
 					right_extreme = floor_point.x;
 					right_extreme_index = i;
 				}
