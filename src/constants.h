@@ -7,6 +7,11 @@
 
 // IMAGE PROCESSING
 
+#ifdef IN_PAPARAZZI
+// Change this to false to slightly speed up the drone image processing.
+#define CAPTURE_PROCESSED_VIDEO true
+#endif
+
 // Floor isolation
 // Define range of green color in HSV
 // Threshold the HSV image to get only green color.

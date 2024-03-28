@@ -10,6 +10,7 @@
 
 #include <opencv2/opencv.hpp>
 
+#include "constants.h"
 #include "drone.h"
 #include "transform.h"
 #include "utility.h"
@@ -23,7 +24,7 @@
 #endif
 
 // Change this to false if you wish to not record vision processed images.
-#define WRITE_REALTIME_PROCESSING_IMAGES true 
+#define WRITE_REALTIME_PROCESSING_IMAGES CAPTURE_PROCESSED_VIDEO 
 
 #ifndef VIDEO_CAPTURE_PATH
 #define VIDEO_CAPTURE_PATH /data/ftp/internal_000/images
