@@ -61,8 +61,14 @@ int main() {
 
     if (old_data_files) {
         // Directory paths relative to src directory.
+        std::string real_life_bush = "../images/real_life/run1/";
+        std::string real_life_low_flying = "../images/real_life/run3/";
+        std::string real_life_flying = "../images/real_life/run4/";
+
+        std::string dir = real_life_bush;
+
         drone_data = getDroneData(
-            "../images/run1/",
+            dir,
             "run1.csv",
             "../data/",
             "../cache/",
@@ -73,9 +79,15 @@ int main() {
         // 20240326-081515 // 1.25 zoom
         // 20240324-020231 // 1.0 zoom
         // 20240327-230719 // 1.0 zoom
-        const char* drone_images_directory = "../images/20240328-094836/";
+        std::string orange_poles_1 = "../images/orange_poles/20240324-020231/";
+        std::string floor_mats_one = "../images/floor_mats/20240327-230719/";
+        std::string floor_mats_many = "../images/floor_mats/20240328-094836/";
+        std::string metal_plate_collision_and_success = "../images/metal_plates/20240328-014412/";
+        std::string unknown = "../images/20240324-020231/";
+
+        std::string dir = orange_poles_1;
         // I wish bebop had above C++ 11 for auto :)
-        std::pair<std::vector<std::pair<cv::Mat, DroneState>>, std::vector<cv::Point>> pair = getDroneDataNew(drone_images_directory, NED);
+        std::pair<std::vector<std::pair<cv::Mat, DroneState>>, std::vector<cv::Point>> pair = getDroneDataNew(dir, NED);
         drone_data = pair.first;
         obstacles = pair.second;
     }
