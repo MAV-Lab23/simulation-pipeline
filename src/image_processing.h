@@ -138,24 +138,24 @@ cv::Mat extractLargestContour(const cv::Mat& image, float* current_horizon_y, st
 	// Create output image (same size and type as input)
 	cv::Mat filtered_image = cv::Mat::zeros(image.size(), CV_8UC1);
 	cv::Mat contour_image;
-#ifndef IN_PAPARAZZI
-	contour_image = cv::Mat::zeros(image.size(), CV_8UC1);
-#else
+#ifdef IN_PAPARAZZI
 	if (WRITE_REALTIME_PROCESSING_IMAGES) {
 		contour_image = cv::Mat::zeros(image.size(), CV_8UC1);
 	}
+#else
+	contour_image = cv::Mat::zeros(image.size(), CV_8UC1);
 #endif
 
 	if (floor_cns.size() > 0) {
 		std::vector<std::vector<cv::Point>> cns = { floor_cns[0] };
 
 		cv::drawContours(filtered_image, cns, -1, cv::Scalar(255), cv::FILLED);
-#ifndef IN_PAPARAZZI
-		cv::drawContours(contour_image, contours, -1, cv::Scalar(255), 1, cv::LINE_8);
-#else
+#ifdef IN_PAPARAZZI
 		if (WRITE_REALTIME_PROCESSING_IMAGES) {
 			cv::drawContours(contour_image, contours, -1, cv::Scalar(255), 1, cv::LINE_8);
 		}
+#else
+		cv::drawContours(contour_image, contours, -1, cv::Scalar(255), 1, cv::LINE_8);
 #endif
 	}
 
@@ -163,12 +163,11 @@ cv::Mat extractLargestContour(const cv::Mat& image, float* current_horizon_y, st
 	if (DRAW_HORIZON_LINE) {
 		filtered_image.copyTo(filtered_image_with_horizon);
 		cv::line(filtered_image_with_horizon, cv::Point(0, horizon_y), cv::Point(filtered_image_with_horizon.cols, horizon_y), cv::Scalar(230), 2);
-		
 	}
 
 #ifdef IN_PAPARAZZI
 	writeImage(DRAW_HORIZON_LINE ? filtered_image_with_horizon : filtered_image, "filtered_images");
-    writeImage(contour_image, "contour_images");
+	writeImage(contour_image, "contour_images");
 #else
 	cv::imshow("Contour", contour_image);
 	cv::imshow("Filtered", DRAW_HORIZON_LINE ? filtered_image_with_horizon : filtered_image);

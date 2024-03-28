@@ -25,9 +25,10 @@
 #endif
 
 extern int image_process_loops;
+extern bool write_images;
 
 void writeImage(const cv::Mat& image, const std::string sub_directory) {
-    if (WRITE_REALTIME_PROCESSING_IMAGES) {
+    if (WRITE_REALTIME_PROCESSING_IMAGES && write_images) {
         std::string directory = std::string(STRINGIFY(VIDEO_CAPTURE_PATH)) + std::string("/../") + sub_directory + std::string("/");
         if (access(directory.c_str(), F_OK)) {
             char save_dir_cmd[266]; // write 10b + [0:256]

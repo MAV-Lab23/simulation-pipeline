@@ -18,6 +18,7 @@
 int image_process_loops = 0;
 float probabilities[GRID_LENGTH] = { 0 };
 int timers[GRID_LENGTH] = { 0 };
+bool write_images = false;
 
 #define UNDISTORT true
 #define SUBTRACT_TIMERS true
@@ -51,6 +52,8 @@ static cv::Mat convertImage(char* img, int width, int height) {
 void parseImage(char* img, int width, int height) {
   const DroneState state = getDroneState();
   cv::Mat image = convertImage(img, width, height);
+
+  write_images = video_capture_record_video;
 
   bool draw_outputs = WRITE_REALTIME_PROCESSING_IMAGES && video_capture_record_video;
   
