@@ -60,9 +60,9 @@ void group_10_obstacle_detector_init(void) {
 void group_10_obstacle_detector_periodic(void) {
   // Avoider.c abi bind is called after group_10_obstacle_detector_init so this is what I did.
   // Perhaps the start="" flag of the module would have been better here?
-  static bool added_obstacles = false;
-  if (!added_obstacles) {
-    addTestObstacles();
-    added_obstacles = true;
-  }
+  // static bool added_obstacles = false;
+  // if (!added_obstacles) {
+  //   addTestObstacles();
+  //   added_obstacles = true;
+  // }
 }

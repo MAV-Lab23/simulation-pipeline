@@ -105,6 +105,13 @@ static void findBestHeading(
       //drawHeading(grid, drone_position, heading, max_distance, cv::Scalar(128, 128, 128), 1);
     }
 
+    if (!validGridPoint(drone_position)) {
+      *best_heading = INVALID_POINT_FLT;
+      best_endpoint->x = INVALID_POINT;
+      best_endpoint->y = INVALID_POINT;
+      return;
+    }
+
     cv::Point2f endpoint = {
       drone_position.x + max_distance / METERS_PER_GRID_CELL_X * -cos(heading_rad),
       drone_position.y + max_distance / METERS_PER_GRID_CELL_Y * -sin(heading_rad)
@@ -154,19 +161,19 @@ static void findBestHeading(
         }
     }
   }
-    if (smallest_heading_difference == DEGREES_TOTAL) {
-        *best_heading = INVALID_POINT_FLT;
-        best_endpoint->x = INVALID_POINT;
-        best_endpoint->y = INVALID_POINT;
-        // Found no headings which take drone to a point where waypoint
-        // endpoint is distance_threshold away from a potential obstacle.
-        // Change drone heading until one is found, if not go forward.
-    } else {
-        // Draw best heading endpoint.
-        if (draw) {
-          cv::circle(grid, { best_endpoint->x, best_endpoint->y }, 3, cv::Scalar(0, 0, 255), -1);
-        }
-    }
+  if (smallest_heading_difference == DEGREES_TOTAL) {
+      *best_heading = INVALID_POINT_FLT;
+      best_endpoint->x = INVALID_POINT;
+      best_endpoint->y = INVALID_POINT;
+      // Found no headings which take drone to a point where waypoint
+      // endpoint is distance_threshold away from a potential obstacle.
+      // Change drone heading until one is found, if not go forward.
+  } else {
+      // Draw best heading endpoint.
+      if (draw) {
+        cv::circle(grid, { best_endpoint->x, best_endpoint->y }, 3, cv::Scalar(0, 0, 255), -1);
+      }
+  }
 }
 
 // Gets the best drone heading in radians.
@@ -180,6 +187,7 @@ static float getBestHeading(cv::Mat& grid, const cv::Point drone_grid_pos, float
 
 // Update timers and grids that become empty
 cv::Point updateGrid(const cv::Point& drone_grid_pos, bool subtract_timers) {
+  //if (!validGridPoint(drone_grid_pos)) return;
 	cv::Point closest_cell = { INVALID_POINT, INVALID_POINT };
 	for (int j = 0; j < GRID_HEIGHT; j++)
 	{
@@ -219,8 +227,10 @@ cv::Point updateGrid(const cv::Point& drone_grid_pos, bool subtract_timers) {
 float updateNavigation(const DroneState& state, cv::Mat& grid, bool draw, bool subtract_timers) {
   cv::Point drone_grid_pos = optitrack3DToGrid(state.pos, true);
   cv::Point closest_cell = updateGrid(drone_grid_pos, subtract_timers);
+  if (!validGridPoint(drone_grid_pos)) return INVALID_POINT_FLT;
   cv::Point best_endpoint = { 0, 0 };
   float best_heading = getBestHeading(grid, drone_grid_pos, state.heading.z, &best_endpoint, draw);
+  if (best_heading == INVALID_POINT_FLT) return INVALID_POINT_FLT;
   return gridToOptitrackHeading(best_heading);
 }
 

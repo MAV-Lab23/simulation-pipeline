@@ -55,9 +55,6 @@ std::vector<cv::Point> clampContourY(const std::vector<cv::Point>& contour, int 
 }
 
 cv::Mat extractLargestContour(const cv::Mat& image, float* current_horizon_y, std::vector<std::vector<cv::Point>>& floor_cns, std::vector<std::vector<cv::Point>>& above_cns) {
-	// Preprocessing (optional)
-	// You might need additional preprocessing steps depending on your image characteristics
-
 	cv::Mat single_channel;
 	cv::cvtColor(image, single_channel, cv::COLOR_BGR2GRAY);
 
@@ -66,6 +63,7 @@ cv::Mat extractLargestContour(const cv::Mat& image, float* current_horizon_y, st
 	std::vector<cv::Vec4i> hierarchy;
 	cv::findContours(single_channel, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
+	// Sort contours so first one has highest area.
 	std::sort(contours.begin(), contours.end(), [](std::vector<cv::Point>& c1, std::vector<cv::Point>& c2) {
 		return cv::contourArea(c1) > cv::contourArea(c2);
 	});
@@ -86,8 +84,10 @@ cv::Mat extractLargestContour(const cv::Mat& image, float* current_horizon_y, st
 	static int horizon_y = INT_MAX;
 
 	if (largest_contours.size() > 0) {
+		// Loop through the largest contour and use it to determine the horizon.
 		for (size_t j = 0; j < largest_contours[0].size(); j++)
 		{
+			// Find the lowest y coordinate (highest on the screen).
 			if (largest_contours[0][j].y < highest_y_coordinate) {
 				highest_y_coordinate = largest_contours[0][j].y;
 				if (horizon_y == INT_MAX) {
@@ -95,18 +95,22 @@ cv::Mat extractLargestContour(const cv::Mat& image, float* current_horizon_y, st
 				}
 				else {
 					if (horizon_y > highest_y_coordinate) {
+						// Ensure that horizon is not switched too quickly frame to frame.
 						if (abs(horizon_y - highest_y_coordinate) < HORIZON_Y_DIST_THRESHOLD) {
 							horizon_y = highest_y_coordinate;
 						}
 						else {
+							// Horizon is within a certain distance away from previous horizon.
 							loops_with_unreset_horizon++;
 						}
+						// Horizon has been away from previous horizon for this many loops.
 						if (loops_with_unreset_horizon >= LOOPS_BEFORE_HORIZON_RESET) {
 							horizon_y = highest_y_coordinate;
 							loops_with_unreset_horizon = 0;
 						}
 					}
 					else {
+						// Set new horizon.
 						horizon_y = highest_y_coordinate;
 					}
 				}
@@ -120,12 +124,14 @@ cv::Mat extractLargestContour(const cv::Mat& image, float* current_horizon_y, st
 		{
 			//largest_contours[i] = clampContourY(largest_contours[i], horizon_y);
 			bool checkarea = false;
+			// Figure out if contour has a point above the horizon.
 			for (size_t j = 0; j < largest_contours[i].size(); j++)
 			{
 				if (largest_contours[i][j].y > horizon_y) {
 					checkarea = true;
 				}
 			}
+			// Check if the contour above horizon meets an area threshold (eliminates noise).
 			if (checkarea) {
 				if (cv::contourArea(largest_contours[i]) > CONTOUR_ABOVE_HORIZON_AREA_THRESHOLD) {
 					above_cns.push_back(largest_contours[i]);
@@ -257,15 +263,15 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 
 	// Prepare the image and mask for object distance detection
 	cv::Mat isolatedFloor, mask;
-	isolateGreenFloor(inputImage, isolatedFloor, mask); // Assume this function is implemented elsewhere
+	isolateGreenFloor(inputImage, isolatedFloor, mask);
+	// Contours below the horizon line.
 	std::vector<std::vector<cv::Point>> floor_cns;
+	// Contours with at least one point above the horizon line.
 	std::vector<std::vector<cv::Point>> above_cns;
 	
 	float horizon_y = 0;
 
 	cv::Mat filteredFloor = extractLargestContour(isolatedFloor, &horizon_y, floor_cns, above_cns);
-
-	//cv::Mat res = detectHarrisCorners(filteredFloor, cns);
 
 	// Clone the input image for annotation to preserve the original
 	cv::Mat annotatedImage = inputImage.clone();
@@ -276,7 +282,9 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 	int img_height = inputImage.rows;
 	int img_width = inputImage.cols;
 
+	// The points at the base of obstacles.
 	std::vector<cv::Point2f> obstacle_base_points;
+	// Points before classification as base points.
 	std::vector<cv::Point2f> potential_obstacle_points;
 
 	if (floor_cns.size() > 0) {
@@ -285,11 +293,13 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 		std::vector<cv::Point>& floor = floor_cns[0];
 
 		cv::Mat drawing = cv::Mat::zeros(contour_edges.size(), CV_8UC1);
+		// Draw all the convex hulls of the floor contours.
+		// Useful for debugging when the floor contour is split by an obstacle.
 		for (size_t i = 0; i < floor_cns.size(); i++) {
 			std::vector<cv::Point> border_counter = floor_cns[i];
 
 			std::vector<cv::Point> hull;
-			cv::convexHull(border_counter, hull, true); // Clockwise orientation, return points
+			cv::convexHull(border_counter, hull, true);
 
 			// Draw the original contour and convex hull (optional)
 			//cv::drawContours(drawing, std::vector<std::vector<cv::Point>>(1, border_counter), 0, cv::Scalar(255), 2);
@@ -326,6 +336,7 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 				}
 			}
 
+			// Draw x axis extremes of the floor.
 			cv::circle(isolatedFloor, floor[left_extreme_index], 6, cv::Scalar(255, 255, 0), -2);
 			cv::circle(isolatedFloor, floor[right_extreme_index], 6, cv::Scalar(255, 255, 0), -2);
 
@@ -338,18 +349,16 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 			}
 		}
 
-		// Draw
-		cv::Mat hull_outliers = inputImage;//cv::Mat::zeros(isolatedFloor.size(), CV_8UC3);
-
-
 		hull.push_back(hull[0]);
 
+		// Figure out if a point on the floor is too close/far from the floor convex hull.
 		for (const cv::Point& pointC : floor) {
 			// Shortest distance of point to a non edge hull line.
 			float shortest_hull_line_distance = DBL_MAX;
 	
 			bool skip = false;
 
+			// Go through all adjacent hull points.
 			for (size_t i = 0; i < hull.size() - 1; ++i) {
 				cv::Point pointA = hull[i];
 				cv::Point pointB = hull[i + 1];
@@ -376,13 +385,14 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 				// "ACCEPTABLE" HULL LINE.
 				
 				float dist_to_floor = distanceToLine({ 0, img_height }, { img_width, img_height }, pointC);
-
 				float dist_to_hull_line = distanceToLine(pointA, pointB, pointC);
 
+				// Find the distance to the closest acceptable hull line.
 				if (dist_to_hull_line < shortest_hull_line_distance) {
 					shortest_hull_line_distance = dist_to_hull_line;
 				}
 
+				// Draw acceptable hull lines on floor.
 				cv::line(isolatedFloor, pointA, pointB, cv::Scalar(0, 0, 255), 2);
 
 				if (dist_to_floor < TOO_CLOSE_TO_FLOOR_LINE) {
@@ -394,7 +404,6 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 					skip = true;
 					break;
 				}
-				//cv::line(isolatedFloor, pointA, pointB, cv::Scalar(0, 0, 255), 2);
 			}
 
 			// Only points that were not too close to any of the contours and are below horizon (y is positive down).
@@ -416,7 +425,7 @@ std::vector<cv::Point2f> processImageForObjects(const cv::Mat& inputImage) {
 		// Get lowest points on the screen of each group of points.
 		for (const std::vector<cv::Point2f>& group : separateGroups)
 		{
-			cv::Point lowest_point = { 0, 0 }; // Top of screen.
+			cv::Point lowest_point = { 0, 0 }; // Top of the screen.
 			if (group.size() == 0) continue;
 
 			// Find lowest point of the individual grouped points.
@@ -466,6 +475,7 @@ std::vector<cv::Point> getGridPoints(
 		if (p.x < 0 || p.x > img_size.width) continue;
 		if (p.y < 0 || p.y > img_size.height) continue;
 		cv::Point2f birds_eye_point = cameraToOptitrackBirdsEye(img_size, state.pos, state.heading, p);
+		if (birds_eye_point.x == INVALID_POINT_FLT || birds_eye_point.y == INVALID_POINT_FLT) continue;
         cv::Point grid_point = optitrack2DToGrid(birds_eye_point);
         if (!validGridPoint(grid_point)) continue;
         grid_points.emplace_back(grid_point);

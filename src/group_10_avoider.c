@@ -21,8 +21,8 @@ float heading_diff = HEADING_INCREMENT;
 static uint8_t moveWaypointForward(uint8_t waypoint, float distanceMeters);
 static uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters);
 static uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i *new_coor);
-static uint8_t increase_nav_heading(float incrementDegrees);
-static uint8_t set_nav_heading(float new_heading);
+static uint8_t increaseNavHeading(float incrementDegrees);
+static uint8_t setNavHeading(float new_heading);
 static uint8_t chooseRandomIncrementAvoidance(void);
 
 enum navigation_state_t {
@@ -120,7 +120,7 @@ void group_10_avoider_periodic(void)
       break;
     case SEARCH_FOR_SAFE_HEADING:
       if (best_heading != INVALID_POINT_FLT) {
-        set_nav_heading(best_heading);
+        setNavHeading(best_heading);
 
         start_pos_x = stateGetPositionEnu_i()->x;
         start_pos_y = stateGetPositionEnu_i()->y;
@@ -131,7 +131,7 @@ void group_10_avoider_periodic(void)
         navigation_state = MOVING;
       } else {
         // If no best heading founds, drone is in crowded area so turn it and try again.
-        increase_nav_heading(heading_diff);
+        increaseNavHeading(heading_diff);
         turns++;
       }
       // If drone has turns a full 360 degrees and still has not found a safe heading, move it forward slightly and start over.
@@ -148,10 +148,10 @@ void group_10_avoider_periodic(void)
         navigation_state = SEARCH_FOR_SAFE_HEADING;
       } else {
         if (best_heading != INVALID_POINT_FLT) {
-          set_nav_heading(best_heading);
+          setNavHeading(best_heading);
           moveWaypointForward(WP_TRAJECTORY, MOVE_DISTANCE);
         } else {
-          increase_nav_heading(heading_diff);
+          increaseNavHeading(heading_diff);
           moveWaypointForward(WP_TRAJECTORY, 1.0f);
         }
       }
@@ -165,7 +165,7 @@ void group_10_avoider_periodic(void)
 /*
  * Increases the NAV heading. Assumes heading is an INT32_ANGLE. It is bound in this function.
  */
-uint8_t increase_nav_heading(float incrementDegrees)
+uint8_t increaseNavHeading(float incrementDegrees)
 {
   float new_heading = stateGetNedToBodyEulers_f()->psi + RadOfDeg(incrementDegrees);
 
@@ -179,7 +179,7 @@ uint8_t increase_nav_heading(float incrementDegrees)
   return false;
 }
 
-uint8_t set_nav_heading(float new_heading)
+uint8_t setNavHeading(float new_heading)
 {
   // normalize heading to [-pi, pi]
   FLOAT_ANGLE_NORMALIZE(new_heading);

@@ -30,7 +30,7 @@ void addNavigationObstacle(int x, int y) {
 	// Convert 2D to 1D coordinate.
   if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) { 
     addGridElement(x + GRID_WIDTH * y);
-    printGridElement(x, y);
+    //printGridElement(x, y);
   }
 }
 

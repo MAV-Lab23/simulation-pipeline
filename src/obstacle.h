@@ -7,6 +7,7 @@
 #include "utility.h"
 #include "constants.h"
 
+// TODO: Fix this function. Currently it produces weird results. Luckily it is not really necessary for functionality.
 static void transformObstacleToGrid(float x, float y, int* out_x, int* out_y) {
 	float angle = M_PI / 2 - TRUE_NORTH_TO_CARPET_ANGLE;
 
