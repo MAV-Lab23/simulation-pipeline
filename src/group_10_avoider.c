@@ -75,7 +75,7 @@ void group_10_avoider_periodic(void)
   int current_pos_x;
   int current_pos_y;
   float diff;
-  float best_heading;
+  float best_heading = getNavigationHeading();
 
   switch (navigation_state) {
     case IDLE:
@@ -88,8 +88,12 @@ void group_10_avoider_periodic(void)
         dist = sqrtf(dist_x * dist_y + dist_y * dist_y);
         diff = MOVE_DISTANCE - dist;
         if (diff > 0) {
-            moveWaypointForward(WP_TRAJECTORY, diff);
-            moveWaypointForward(WP_GOAL, diff);
+          if (!InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY))){
+              navigation_state = OUT_OF_BOUNDS;
+            } else {
+              moveWaypointForward(WP_TRAJECTORY, diff);
+              moveWaypointForward(WP_GOAL, diff);
+            }
         } else {
             navigation_state = SEARCH_FOR_SAFE_HEADING;
         }
@@ -115,7 +119,6 @@ void group_10_avoider_periodic(void)
       navigation_state = SEARCH_FOR_SAFE_HEADING;
       break;
     case SEARCH_FOR_SAFE_HEADING:
-      best_heading = getNavigationHeading();
       if (best_heading != INVALID_POINT_FLT) {
         set_nav_heading(best_heading);
 
@@ -140,16 +143,17 @@ void group_10_avoider_periodic(void)
       }
       break;
     case OUT_OF_BOUNDS:
-      increase_nav_heading(heading_diff);
-
-      moveWaypointForward(WP_TRAJECTORY, MOVE_DISTANCE);
-
       if (InsideObstacleZone(WaypointX(WP_TRAJECTORY), WaypointY(WP_TRAJECTORY))){
-        // add offset to head back into arena
-        increase_nav_heading(heading_diff);
-
         // ensure direction is safe before continuing
         navigation_state = SEARCH_FOR_SAFE_HEADING;
+      } else {
+        if (best_heading != INVALID_POINT_FLT) {
+          set_nav_heading(best_heading);
+          moveWaypointForward(WP_TRAJECTORY, MOVE_DISTANCE);
+        } else {
+          increase_nav_heading(heading_diff);
+          moveWaypointForward(WP_TRAJECTORY, 1.0f);
+        }
       }
       break;
     default:
