@@ -10,12 +10,17 @@
 
 #include <opencv2/opencv.hpp>
 
+#include "drone.h"
 #include "transform.h"
 #include "utility.h"
 
 #ifdef IN_PAPARAZZI
 
 #include "modules/computer_vision/video_capture.h"
+
+#ifndef PRINT
+#define PRINT(string,...) fprintf(stderr, "[writeImage->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
+#endif
 
 // Change this to false if you wish to not record vision processed images.
 #define WRITE_REALTIME_PROCESSING_IMAGES true 
@@ -25,10 +30,9 @@
 #endif
 
 extern int image_process_loops;
-extern bool write_images;
 
-void writeImage(const cv::Mat& image, const std::string sub_directory) {
-    if (WRITE_REALTIME_PROCESSING_IMAGES && write_images) {
+void writeImage(const cv::Mat& image, const std::string& sub_directory) {
+    if (WRITE_REALTIME_PROCESSING_IMAGES && video_capture_record_video) {
         std::string directory = std::string(STRINGIFY(VIDEO_CAPTURE_PATH)) + std::string("/../") + sub_directory + std::string("/");
         if (access(directory.c_str(), F_OK)) {
             char save_dir_cmd[266]; // write 10b + [0:256]
@@ -44,8 +48,6 @@ void writeImage(const cv::Mat& image, const std::string sub_directory) {
 }
 
 #else
-
-#include "drone.h"
 
 #define WRITE_REALTIME_PROCESSING_IMAGES false 
 

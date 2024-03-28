@@ -7,18 +7,17 @@
 #include "std.h"
 #include "modules/core/abi.h"
 
+// FOR GRID VISUALIZATION
+#include "draw.h"
+
 #include "transform.h"
 #include "navigation.h"
 #include "drone.h"
 #include "image_processing.h"
 
-// FOR GRID VISUALIZATION
-#include "draw.h"
-
 int image_process_loops = 0;
 float probabilities[GRID_LENGTH] = { 0 };
 int timers[GRID_LENGTH] = { 0 };
-bool write_images = false;
 
 #define UNDISTORT true
 #define SUBTRACT_TIMERS true
@@ -53,12 +52,8 @@ void parseImage(char* img, int width, int height) {
   const DroneState state = getDroneState();
   cv::Mat image = convertImage(img, width, height);
 
-  write_images = video_capture_record_video;
-
-  bool draw_outputs = WRITE_REALTIME_PROCESSING_IMAGES && video_capture_record_video;
-  
   cv::Mat grid;
-  std::vector<cv::Point> grid_points = detectObstacles(image, state, NULL, UNDISTORT, {}, draw_outputs, &grid);
+  std::vector<cv::Point> grid_points = detectObstacles(image, state, NULL, UNDISTORT, {}, WRITE_REALTIME_PROCESSING_IMAGES, &grid);
 
   // Send obstacle grid points to avoider.c via abi.
   for (const cv::Point& gp : grid_points) {
@@ -67,12 +62,10 @@ void parseImage(char* img, int width, int height) {
     }
   }
 
-  if (draw_outputs) {
-    // Show real time processed video.
-    writeImage(image, "processed_images");
-    // Show real time grid.
-    writeImage(grid, "grid_images");
-  }
+  // Show real time processed video.
+  writeImage(image, "processed_images");
+  // Show real time grid.
+  writeImage(grid, "grid_images");
 
   // Conversion back to YUV422 not required due to writeImage.
   // Convert back to YUV422 and put it in place of the original image

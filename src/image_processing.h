@@ -9,6 +9,7 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include "draw.h"
 #include "drone.h"
 #include "constants.h"
 #include "utility.h"
