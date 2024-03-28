@@ -73,7 +73,7 @@ int main() {
         // 20240326-081515 // 1.25 zoom
         // 20240324-020231 // 1.0 zoom
         // 20240327-230719 // 1.0 zoom
-        const char* drone_images_directory = "../images/20240328-094836/";
+        const char* drone_images_directory = "../images/20240324-020231/";
         // I wish bebop had above C++ 11 for auto :)
         std::pair<std::vector<std::pair<cv::Mat, DroneState>>, std::vector<cv::Point>> pair = getDroneDataNew(drone_images_directory, NED);
         drone_data = pair.first;

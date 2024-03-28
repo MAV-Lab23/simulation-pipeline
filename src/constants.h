@@ -71,6 +71,7 @@
 #define HEADING_INCREMENT 10.0f
 #define HEADING_COUNT (DEGREES_TOTAL / HEADING_INCREMENT)
 
+
 // Headings which are this many grid cells from carpet edge are also skipped.
 #define HEADING_WIDTH_PADDING 10.0f
 #define HEADING_HEIGHT_PADDING 10.0f
