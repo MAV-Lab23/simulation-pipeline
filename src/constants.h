@@ -67,19 +67,19 @@
 #define DEGREES_TOTAL 360
 
 // This you can change to alter how much the drone turns per new heading.
-#define HEADING_INCREMENT 15.0f
+#define HEADING_INCREMENT 10.0f
 #define HEADING_COUNT (DEGREES_TOTAL / HEADING_INCREMENT)
 
 // Headings which are this many grid cells from carpet edge are also skipped.
-#define HEADING_WIDTH_PADDING 11.0f
-#define HEADING_HEIGHT_PADDING 11.0f
+#define HEADING_WIDTH_PADDING 17.0f
+#define HEADING_HEIGHT_PADDING 17.0f
 
 // Timers
 
 #ifdef IN_PAPARAZZI
-#define OBSTACLE_POINT_MAX_LIFETIME 80 // frames of avoider periodic function (4 hz)
+#define OBSTACLE_POINT_MAX_LIFETIME 40 // frames of avoider periodic function (4 hz)
 #else
-#define OBSTACLE_POINT_MAX_LIFETIME 200 // image frames (10 hz)
+#define OBSTACLE_POINT_MAX_LIFETIME 100 // image frames (10 hz)
 #endif
 
 // MISC
@@ -98,10 +98,10 @@
 #define GRID_HEIGHT 300
 #define GRID_LENGTH (GRID_WIDTH * GRID_HEIGHT)
 
-#define ARENA_WIDTH 10.0f // meters
-#define ARENA_HEIGHT 10.0f // meters
-#define CARPET_WIDTH 7.0f // meters
-#define CARPET_HEIGHT 7.0f // meters
+#define ARENA_WIDTH 7.0f // meters
+#define ARENA_HEIGHT 7.0f // meters
+#define CARPET_WIDTH 6.0f // meters
+#define CARPET_HEIGHT 6.0f // meters
 
 #define GROUND_HEIGHT 0.0f
 
