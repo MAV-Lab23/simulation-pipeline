@@ -61,19 +61,18 @@
 
 #define ACCEPTABLE_HEADING_POINT_TO_OBSTACLE_DISTANCE 0.4f // meters
 
-#define MOVE_DISTANCE 1.0f // max waypoint displacement before re-evaluating heading, meters
-
+#define MOVE_DISTANCE 0.8f // max waypoint displacement before re-evaluating heading, meters
 
 // DO NOT CHANGE THIS VALUE, IT WILL MESS UP HEADING SEARCH
 #define DEGREES_TOTAL 360
 
 // This you can change to alter how much the drone turns per new heading.
-#define HEADING_INCREMENT 10.0f
+#define HEADING_INCREMENT 15.0f
 #define HEADING_COUNT (DEGREES_TOTAL / HEADING_INCREMENT)
 
 // Headings which are this many grid cells from carpet edge are also skipped.
-#define HEADING_WIDTH_PADDING 10.0f
-#define HEADING_HEIGHT_PADDING 10.0f
+#define HEADING_WIDTH_PADDING 11.0f
+#define HEADING_HEIGHT_PADDING 11.0f
 
 // Timers
 
