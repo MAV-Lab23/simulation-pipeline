@@ -21,8 +21,8 @@
 
 const int OBSTACLE_POINT_MAX_LIFETIME = 200; // frames of periodic function
 
-static float probabilities[GRID_LENGTH] = { 0 };
-static int timers[GRID_LENGTH] = { 0 };
+extern float probabilities[GRID_LENGTH];
+extern int timers[GRID_LENGTH];
 
 static float move_distance = 1.0f; // max waypoint displacement before re-evaluating [m]
 

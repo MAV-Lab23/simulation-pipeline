@@ -10,6 +10,9 @@
 #include "image_processing.h"
 #include "navigation.h"
 
+float probabilities[GRID_LENGTH] = { 0 };
+int timers[GRID_LENGTH] = { 0 };
+
 void loop(cv::Mat& in_img, DroneState& state, const std::vector<Obstacle>& obstacles) {
     // Process a copy of the image so the original can be displayed later.
     cv::Mat original_img;
@@ -230,7 +233,7 @@ int main() {
         // 20240326-081515 // 1.25 zoom
         // 20240324-020231 // 1.0 zoom
         // 20240327-230719 // 1.0 zoom
-        const char* drone_images_directory = "../images/20240328-014412/";
+        const char* drone_images_directory = "../images/20240324-020231/";
         std::pair<std::vector<std::pair<cv::Mat, DroneState>>, std::vector<Obstacle>> pair = getDroneDataNew(drone_images_directory, NED);
         drone_data = pair.first;
         obstacles = pair.second;

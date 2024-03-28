@@ -15,6 +15,10 @@
 #include "navigation.h"
 #include "draw.h"
 
+int image_process_loops = 0;
+float probabilities[GRID_LENGTH] = { 0 };
+int timers[GRID_LENGTH] = { 0 };
+
 #ifndef PRINT
 #define PRINT(string,...) fprintf(stderr, "[avoider->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
 #endif
@@ -46,7 +50,7 @@ int parseImage(char *img, int width, int height, const DroneState state)
     AbiSendMsgGROUP_10_OBSTACLE_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, u_grid_points[i].x, u_grid_points[i].y);
   }
 
-  if (SHOW_REALTIME_PROCESSED_IMAGE && video_capture_record_video) {
+  if (WRITE_REALTIME_PROCESSING_IMAGES && video_capture_record_video) {
     int point_radius = 2;
     for (size_t i = 0; i < points.size(); i++) {
       //PRINT("Drawing point to image: %i, %i \n", (int)points[i].x, (int)points[i].y);
@@ -54,10 +58,10 @@ int parseImage(char *img, int width, int height, const DroneState state)
     }
 
     // Show real time processed video.
-    writeImage(grid, "processed_images");
+    writeImage(image, "processed_images");
   }
 
-  if (SHOW_REALTIME_GRID && video_capture_record_video) {
+  if (WRITE_REALTIME_PROCESSING_IMAGES && video_capture_record_video) {
     cv::Mat grid = cv::Mat(GRID_SIZE.x, GRID_SIZE.y, CV_8UC3);
     grid.setTo(cv::Scalar(255, 255, 255));
 
