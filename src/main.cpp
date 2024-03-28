@@ -85,13 +85,14 @@ int main() {
         std::string floor_mats_one = "../images/floor_mats/20240327-230719/";
         std::string floor_mats_many = "../images/floor_mats/20240328-094836/";
         std::string metal_plate_collision_and_success = "../images/metal_plates/20240328-014412/";
-        std::string unknown = "../images/20240324-020231/";
+        std::string best_run = "../images/mix/20240328-135410/";
 
-        std::string dir = orange_poles_1;
+        std::string dir = best_run;//orange_poles_1;
         // I wish bebop had above C++ 11 for auto :)
         std::pair<std::vector<std::pair<cv::Mat, DroneState>>, std::vector<cv::Point>> pair = getDroneDataNew(dir, NED);
         drone_data = pair.first;
-        obstacles = pair.second;
+        // TODO: Obstacle positions / rotations need to be fixed.
+        //obstacles = pair.second;
     }
 
     for (std::pair<cv::Mat, DroneState>& pair : drone_data) {
