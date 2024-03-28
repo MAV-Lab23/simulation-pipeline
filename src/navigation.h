@@ -104,6 +104,9 @@ static void findBestHeading(
       drone_position.y + max_distance / METERS_PER_GRID_CELL_Y * -sin(heading_rad)
     };
 
+    static_assert(HEADING_WIDTH_PADDING < GRID_WIDTH);
+    static_assert(HEADING_HEIGHT_PADDING < GRID_HEIGHT);
+
     // Skip headings which would take the drone out of bounds (and some headings near those).
     if (endpoint.x > bottom_right.x - HEADING_WIDTH_PADDING  ||
         endpoint.x < top_left.x     + HEADING_WIDTH_PADDING  ||
