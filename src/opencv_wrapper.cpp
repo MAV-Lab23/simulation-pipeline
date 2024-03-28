@@ -18,7 +18,7 @@
 #endif
 
 static const bool SHOW_REALTIME_PROCESSED_IMAGE = false; 
-static const bool SHOW_REALTIME_GRID = false;
+static const bool SHOW_REALTIME_GRID = true;
 
 int parseImage(char *img, int width, int height, const DroneState state)
 {
@@ -55,7 +55,7 @@ int parseImage(char *img, int width, int height, const DroneState state)
       cv::circle(image, {(int)points[i].x, (int)points[i].y}, point_radius, cv::Scalar(255, 0, 0), -1);
     }
 
-    // Show real time processed video.
+    // Show real time processed video.`1
     std::string final_image_path = "images/final_image" + std::to_string(counter) + ".jpg";
     cv::imwrite(final_image_path, image);
   }

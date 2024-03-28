@@ -230,7 +230,7 @@ int main() {
         // 20240326-081515 // 1.25 zoom
         // 20240324-020231 // 1.0 zoom
         // 20240327-230719 // 1.0 zoom
-        const char* drone_images_directory = "../images/20240327-230719/";
+        const char* drone_images_directory = "../images/20240328-012850/";
         std::pair<std::vector<std::pair<cv::Mat, DroneState>>, std::vector<Obstacle>> pair = getDroneDataNew(drone_images_directory, NED);
         drone_data = pair.first;
         obstacles = pair.second;

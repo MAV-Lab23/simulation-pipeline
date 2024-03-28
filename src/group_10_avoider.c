@@ -84,7 +84,7 @@ void group_10_avoider_periodic(void)
   float best_heading = drone_heading;
   Vector2i best_endpoint = drone_grid_pos;
 
-  Vector2i closest_cell = updateGrid(drone_grid_pos, false);
+  Vector2i closest_cell = updateGrid(drone_grid_pos, true);
 
 	if (validVectorInt(closest_cell)) {
 		//PRINT("Closest probabilities cell: (%i, %i)\n", closest_cell.x, closest_cell.y);

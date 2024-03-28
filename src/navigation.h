@@ -19,7 +19,7 @@
 #define DEGREES_TOTAL 360
 #define HEADING_COUNT (DEGREES_TOTAL / HEADING_INCREMENT)
 
-const int OBSTACLE_POINT_MAX_LIFETIME = 200; // frames of periodic function
+const int OBSTACLE_POINT_MAX_LIFETIME = 5000; // frames of periodic function
 
 static float probabilities[GRID_LENGTH] = { 0 };
 static int timers[GRID_LENGTH] = { 0 };
@@ -27,7 +27,7 @@ static int timers[GRID_LENGTH] = { 0 };
 static float move_distance = 1.0f; // max waypoint displacement before re-evaluating [m]
 
 static float closest_obstacle_distance = FLT_MAX; // distance to nearest obstacle [m]
-static float closest_obstacle_distance_threshold = 1; // max distance to nearest obstacle before finding new heading [m]
+static float closest_obstacle_distance_threshold = .45; // max distance to nearest obstacle before finding new heading [m]
 
 static float heading_diff = HEADING_INCREMENT;
 
@@ -97,19 +97,19 @@ static void findBestHeading(
   Vector2i* best_endpoint,
   float* best_heading /* radians */) {
 
-    float distance_threshold2 = min_point_distance * min_point_distance / (METERS_PER_GRID_CELL.x * METERS_PER_GRID_CELL.x);
+  float distance_threshold2 = min_point_distance * min_point_distance / (METERS_PER_GRID_CELL.x * METERS_PER_GRID_CELL.x);
 
-    float smallest_heading_difference = DEGREES_TOTAL;
+  float smallest_heading_difference = DEGREES_TOTAL;
 
-    // Headings which are this many grid cells from carpet edge are also skipped.
-    float heading_width_padding = 10;
-    float heading_height_padding = 10;
-    
-    Vector2i top_left;
-    Vector2i bottom_right;
-    getCarpetCorners(&top_left, &bottom_right);
+  // Headings which are this many grid cells from carpet edge are also skipped.
+  float heading_width_padding = 10;
+  float heading_height_padding = 10;
+  
+  Vector2i top_left;
+  Vector2i bottom_right;
+  getCarpetCorners(&top_left, &bottom_right);
 
-  for (float heading = 0.0f; heading < DEGREES_TOTAL; heading += HEADING_INCREMENT) {
+    for (float heading = 0.0f; heading < DEGREES_TOTAL; heading += HEADING_INCREMENT) {    
     float heading_rad = heading * M_PI / 180.0;
 
     #ifndef IN_PAPARAZZI
@@ -130,38 +130,38 @@ static void findBestHeading(
     float shortest_distance2 = FLT_MAX;
 
     for (int j = 0; j < GRID_SIZE.y; j++) {
-        int offset = j * GRID_SIZE.x;
-        for (int i = 0; i < GRID_SIZE.x; i++) {
-            int index = i + GRID_SIZE.x * j;
-            Vector2f point = { (float)i, (float)j };
-            float probability = getGridProbability(index);
-            if (probability > 0) {
-                float point_distance2 = distanceSquared(endpoint, point);
-                if (point_distance2 <= shortest_distance2) {
-                    shortest_distance2 = point_distance2;
-                }
-            }
-        }
+      int offset = j * GRID_SIZE.x;
+      for (int i = 0; i < GRID_SIZE.x; i++) {
+          int index = i + GRID_SIZE.x * j;
+          Vector2f point = { (float)i, (float)j };
+          float probability = getGridProbability(index);
+          if (probability > 0) {
+              float point_distance2 = distanceSquared(endpoint, point);
+              if (point_distance2 <= shortest_distance2) {
+                  shortest_distance2 = point_distance2;
+              }
+          }
+      }
     }
 
-
+    
     if (shortest_distance2 != FLT_MAX && shortest_distance2 > distance_threshold2) {
-        float norm_drone_heading = (int)radToDeg(drone_heading) % 360;
-        //PRINT("drone: %.2f\n", norm_drone_heading);
-        float diff = (float)((int)fabsf(norm_drone_heading - heading) % 360);
-        float diff_other_way = fabsf(diff - 360);
-        diff = MIN(diff, diff_other_way);
-        // Draw all potentially acceptable heading endpoints.
-    #ifndef IN_PAPARAZZI
-        cv::circle(grid, { (int)endpoint.x, (int)endpoint.y }, 1, cv::Scalar(255, 0, 0), -1);
-    #endif
-        if (diff <= smallest_heading_difference) {
+      float norm_drone_heading = (int)radToDeg(drone_heading) % 360;
+      //PRINT("drone: %.2f\n", norm_drone_heading);
+      float diff = (float)((int)fabsf(norm_drone_heading - heading) % 360);
+      float diff_other_way = fabsf(diff - 360);
+      diff = MIN(diff, diff_other_way);
+      // Draw all potentially acceptable heading endpoints.
+  #ifndef IN_PAPARAZZI
+      cv::circle(grid, { (int)endpoint.x, (int)endpoint.y }, 1, cv::Scalar(255, 0, 0), -1);
+  #endif
+if (diff <= smallest_heading_difference) {
             smallest_heading_difference = diff;
             best_endpoint->x = (int)endpoint.x;
             best_endpoint->y = (int)endpoint.y;
             *best_heading = heading_rad;
         }
-        // shortest_distance2 < best_heading_distance2
+// shortest_distance2 < best_heading_distance2
         // best_heading_distance2 = shortest_distance2;
         //*best_heading = heading;
         //float dist = sqrtf(shortest_distance2 / (GRID_SIZE.x * GRID_SIZE.x + GRID_SIZE.y * GRID_SIZE.y));
@@ -176,11 +176,11 @@ static void findBestHeading(
         // endpoint is distance_threshold away from a potential obstacle.
         // Change drone heading until one is found, if not go forward.
     } else {
-        // Draw best heading endpoint.
-    #ifndef IN_PAPARAZZI
-        cv::circle(grid, { best_endpoint->x, best_endpoint->y }, 3, cv::Scalar(0, 0, 255), -1);
-    #endif
-    }
+  // Draw best heading endpoint.
+#ifndef IN_PAPARAZZI
+  cv::circle(grid, { best_endpoint->x, best_endpoint->y }, 3, cv::Scalar(0, 0, 255), -1);
+#endif
+}
 }
 
 // Gets the best drone heading in radians.

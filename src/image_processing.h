@@ -166,7 +166,7 @@ cv::Mat extractLargestContour(const cv::Mat& image, float* current_horizon_y, st
 	// Find contours
 	std::vector<std::vector<cv::Point>> contours;
 	std::vector<cv::Vec4i> hierarchy;
-	cv::findContours(single_channel, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+	cv::findContours(single_channel, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
 	std::sort(contours.begin(), contours.end(), [](std::vector<cv::Point>& c1, std::vector<cv::Point>& c2) {
 		return cv::contourArea(c1) > cv::contourArea(c2);
@@ -425,7 +425,7 @@ cv::Mat detectHarrisCorners(const cv::Mat& image, const std::vector<std::vector<
 	// Find contours of corner mask
 	std::vector<std::vector<cv::Point>> corner_contours;
 	std::vector<cv::Vec4i> hierarchy;
-	cv::findContours(corner_mask, corner_contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+	cv::findContours(corner_mask, corner_contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
 	// Filter corners based on proximity to original contours
 	cv::Mat result_image = image.clone();
