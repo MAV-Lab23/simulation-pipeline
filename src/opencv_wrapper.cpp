@@ -28,8 +28,10 @@ int timers[GRID_LENGTH] = { 0 };
 
 void addNavigationObstacle(int x, int y) {
 	// Convert 2D to 1D coordinate.
-  addGridElement(x + GRID_WIDTH * y);
-  printGridElement(x, y);
+  if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) { 
+    addGridElement(x + GRID_WIDTH * y);
+    printGridElement(x, y);
+  }
 }
 
 float getNavigationHeading() {
@@ -57,7 +59,9 @@ void parseImage(char* img, int width, int height) {
 
   // Send obstacle grid points to avoider.c via abi.
   for (const cv::Point& gp : grid_points) {
-    AbiSendMsgGROUP_10_OBSTACLE_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, (float)gp.x, (float)gp.y);
+    if (gp.x >= 0 && gp.x < GRID_WIDTH && gp.y >= 0 && gp.y < GRID_HEIGHT) { 
+      AbiSendMsgGROUP_10_OBSTACLE_DETECTION(GROUP_10_OBSTACLE_DETECTION_ID, (float)gp.x, (float)gp.y);
+    }
   }
 
   if (draw_outputs) {

@@ -38,23 +38,27 @@ static void printGridElement(int i, int j) {
 
 
 static void setGridProbability(int index, float probability) {
-	assert(index >= 0 && index < GRID_LENGTH);
-	probabilities[index] = clamp(probability, 0.0f, 1.0f);
+	if (index >= 0 && index < GRID_LENGTH) {
+	  probabilities[index] = clamp(probability, 0.0f, 1.0f);
+  }
 }
 
 static float getGridProbability(int index) {
-	assert(index >= 0 && index < GRID_LENGTH);
-	return probabilities[index];
+	if (index >= 0 && index < GRID_LENGTH) {
+	  return probabilities[index];
+  }
 }
 
 static void setTimer(int index, int value) {
-	assert(index >= 0 && index < GRID_LENGTH);
-	timers[index] = clamp(value, 0, OBSTACLE_POINT_MAX_LIFETIME);
+	if (index >= 0 && index < GRID_LENGTH) {
+	  timers[index] = clamp(value, 0, OBSTACLE_POINT_MAX_LIFETIME);
+  }
 }
 
 static int getTimer(int index) {
-	assert(index >= 0 && index < GRID_LENGTH);
-	return timers[index];
+	if (index >= 0 && index < GRID_LENGTH) {
+	  return timers[index];
+  }
 }
 
 static void addGridElement(int index) {

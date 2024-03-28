@@ -25,8 +25,10 @@ void parseImage(cv::Mat& image, DroneState& state, const std::vector<cv::Point>&
 
     // Add identified points to grid and set their timers.
     for (const cv::Point& gp : grid_points) {
-	    // Convert 2D to 1D coordinate.
-        addGridElement(gp.x + GRID_WIDTH * gp.y);
+        if (gp.x >= 0 && gp.x < GRID_WIDTH && gp.y >= 0 && gp.y < GRID_HEIGHT) { 
+            // Convert 2D to 1D coordinate.
+            addGridElement(gp.x + GRID_WIDTH * gp.y);
+        }
     }
 
     float best_heading = updateNavigation(state, grid, true, true);
