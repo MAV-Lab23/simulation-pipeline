@@ -78,9 +78,6 @@ int main() {
         );
     } else {
         // Directory path relative to src directory.
-        // 20240326-081515 // 1.25 zoom
-        // 20240324-020231 // 1.0 zoom
-        // 20240327-230719 // 1.0 zoom
         std::string orange_poles_1 = "../images/orange_poles/20240324-020231/";
         std::string floor_mats_one = "../images/floor_mats/20240327-230719/";
         std::string floor_mats_many = "../images/floor_mats/20240328-094836/";
