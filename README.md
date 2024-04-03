@@ -1,4 +1,4 @@
-### NOTES
+# NOTE TO COURSE ORGANIZERS
 
 This repository has two entry points: main.cpp and group_10_obstacle_detector.c/group_10_avoider.c depending on the context it is built in.
 
