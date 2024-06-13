@@ -4,7 +4,9 @@
 #include <string>
 #include <vector>
 #include <stdio.h>
+#ifdef __linux__ 
 #include <unistd.h>
+#endif
 #include <stdlib.h>
 #include <time.h>
 
