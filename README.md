@@ -1,3 +1,6 @@
+
+![2](https://github.com/user-attachments/assets/6e475b5d-c3fe-4500-969e-70946d6aabf7)
+
 # NOTE TO COURSE ORGANIZERS
 
 This repository has two entry points: main.cpp and group_10_obstacle_detector.c/group_10_avoider.c depending on the context it is built in.
